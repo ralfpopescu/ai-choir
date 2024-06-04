@@ -1,11 +1,12 @@
 import subprocess
 import os
+import json
 
 def build_command(speaker, folder):
     return [
-    'python3', '../so-vits/svc/inference_main.py',
-    '-c', f'models/{folder}/config.json',
-    '-m', f'models/{folder}/model.pth',
+    'python3', 'inference_main.py',
+    '-c', f'../../models/{folder}/config.json',
+    '-m', f'../../models/{folder}/model.pth',
     '-n', 'input.wav',
     '-s', speaker
 ]
@@ -35,12 +36,16 @@ def get_models(base_path):
 
 models = get_models("./models")
 
+original_directory = os.getcwd()
+os.chdir('./so-vits-svc/so-vits-svc-4.1-Stable')
+
 # generate output for each model
 for folder, spk in models:
     command = build_command(spk, folder)
     process = subprocess.Popen(command, env=my_env)
     process.wait()
 
+os.chdir(original_directory)
 # process each individual voice
 command = ['python3', 'gen_process.py']
 process = subprocess.Popen(command, env=my_env)
@@ -50,3 +55,5 @@ process.wait()
 command = ['python3', 'gen_combine.py']
 process = subprocess.Popen(command, env=my_env)
 process.wait()
+
+print('Done! See result in output folder.')

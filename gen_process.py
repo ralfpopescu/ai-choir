@@ -2,7 +2,7 @@ from pydub import AudioSegment
 import math
 
 def gen_input_file(speaker):
-    return f'./so-vits-svc/results/input.wav_0key_{speaker}_sovits_pm.flac'
+    return f'./so-vits-svc/so-vits-svc-4.1-Stable/results/input.wav_0key_{speaker}_sovits_pm.flac'
 
 def generate_amount():
     return random.uniform(0.012, 0.18)
