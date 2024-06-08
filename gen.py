@@ -1,6 +1,9 @@
 import subprocess
 import os
 import json
+import shutil
+import sys
+from util import get_models
 
 def build_command(speaker, folder):
     return [
@@ -11,6 +14,20 @@ def build_command(speaker, folder):
     '-s', speaker
 ]
 
+def move_and_rename_file(file_path, destination_dir):
+    if not os.path.exists(destination_dir):
+        os.makedirs(destination_dir)
+    
+    destination_path = os.path.join(destination_dir, 'input.wav')
+    shutil.copy(file_path, destination_path)
+    print(f"File copied and renamed to: {destination_path}")
+
+# Example usage
+# copy_and_rename_file('path/to/original/file.wav', 'path/to/destination/dir')
+
+
+def is_wav_file(file_path):
+    return file_path.lower().endswith('.wav')
 
 # Create a copy of the current environment
 my_env = os.environ.copy()
@@ -18,23 +35,24 @@ my_env = os.environ.copy()
 # Update the PATH variable to include additional paths
 my_env["PATH"] = f"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{my_env['PATH']}"
 
-def get_models(base_path):
-    result = []
-    # Iterate over each folder in the base directory
-    for folder_name in os.listdir(base_path):
-        folder_path = os.path.join(base_path, folder_name)
-        if os.path.isdir(folder_path):
-            config_path = os.path.join(folder_path, 'config.json')
-            if os.path.isfile(config_path):
-                # Read the config.json file
-                with open(config_path, 'r') as config_file:
-                    config_data = json.load(config_file)
-                    # Extract the key under the "spk" field
-                    spk_key = list(config_data['spk'].keys())[0]
-                    result.append((folder_name, spk_key))
-    return result
+if len(sys.argv) != 2:
+        print("Usage: python script.py <path_to_wav_file>")
+        sys.exit(1)
+    
+file_path = sys.argv[1]
 
-models = get_models("./models")
+if not os.path.isfile(file_path):
+    print(f"Error: The file '{file_path}' does not exist.")
+    sys.exit(1)
+
+if not is_wav_file(file_path):
+    print(f"Error: The file '{file_path}' is not a WAV file.")
+    sys.exit(1)
+    
+destination_dir = './so-vits-svc/so-vits-svc-4.1-Stable/raw'
+move_and_rename_file(file_path, destination_dir)
+
+models = get_models()
 
 original_directory = os.getcwd()
 os.chdir('./so-vits-svc/so-vits-svc-4.1-Stable')
