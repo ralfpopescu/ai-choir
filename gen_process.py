@@ -7,7 +7,7 @@ import random
 def gen_input_file(speaker):
     return f'./so-vits-svc/so-vits-svc-4.1-Stable/results/input.wav_0key_{speaker}_sovits_pm.flac'
 
-base_detune = .012
+base_detune = .014
 
 def generate_amount(idx):
     if idx % 2 == 0:
@@ -15,7 +15,7 @@ def generate_amount(idx):
     return base_detune - (idx % 4 * 0.001)
 
 def generate_segment_length():
-    return int(random.uniform(450, 950))
+    return int(random.uniform(400, 1000))
 
 
 # Function to change speed
@@ -72,6 +72,8 @@ for idx, speaker in enumerate(get_speakers()):
 
     # Combine all processed segments
     final_audio = sum(processed_segments)
+
+    final_audio = final_audio - 10
 
     # Export the final audio
     final_audio.export(f"./output/{speaker}.mp3", format="mp3")

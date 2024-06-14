@@ -35,7 +35,7 @@ overlayed.export(f"./output/generation_at_{str(int(time.time()))}.mp3", format="
 
 for file_name in files:
     try:
-        os.remove(file_name)
+        # os.remove(file_name)
         print(f"Cleaned up: {file_name}")
     except FileNotFoundError:
         print(f"File not found: {file_name}")
