@@ -42,15 +42,4 @@ for audio in panned_audios[1:]:
     overlayed = overlayed.overlay(audio)
 
 # Export the combined audio file as MP3
-overlayed.export(f"./output/generation_at_{str(int(time.time()))}.mp3", format="mp3")
-
-for file_name in files:
-    try:
-        # os.remove(file_name)
-        print(f"Cleaned up: {file_name}")
-    except FileNotFoundError:
-        print(f"File not found: {file_name}")
-    except PermissionError:
-        print(f"Permission denied: {file_name}")
-    except Exception as e:
-        print(f"Error deleting {file_name}: {e}")
+overlayed.export("./output/to_convolve.mp3", format="mp3")

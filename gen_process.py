@@ -14,9 +14,7 @@ def generate_amount(idx):
         return base_detune + (idx % 4 * 0.001)
     return base_detune - (idx % 4 * 0.001)
 
-def generate_segment_length():
-    return int(random.uniform(400, 1000))
-
+segment_lengths = [400, 600, 800, 1000, 500, 700, 900]
 
 # Function to change speed
 def change_speed(segment, speed=1.0):
@@ -28,7 +26,7 @@ def change_speed(segment, speed=1.0):
 for idx, speaker in enumerate(get_speakers()):
     file = gen_input_file(speaker)
     amount = generate_amount(idx)
-    segment_length = generate_segment_length()
+    segment_length = segment_lengths[idx]
 
     # Load the audio file
     audio = AudioSegment.from_file(file)

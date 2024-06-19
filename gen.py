@@ -48,6 +48,10 @@ if not os.path.isfile(file_path):
 if not is_wav_file(file_path):
     print(f"Error: The file '{file_path}' is not a WAV file.")
     sys.exit(1)
+
+command = ['python3', 'setup_env.py']
+process = subprocess.Popen(command, env=my_env)
+process.wait()
     
 destination_dir = './so-vits-svc/so-vits-svc-4.1-Stable/raw'
 move_and_rename_file(file_path, destination_dir)
@@ -69,8 +73,23 @@ command = ['python3', 'gen_process.py']
 process = subprocess.Popen(command, env=my_env)
 process.wait()
 
+# curve noisy models
+command = ['python3', 'gen_curve.py']
+process = subprocess.Popen(command, env=my_env)
+process.wait()
+
 # combine them all into the choir
 command = ['python3', 'gen_combine.py']
+process = subprocess.Popen(command, env=my_env)
+process.wait()
+
+# add convolution reverb
+command = ['python3', 'gen_convolve.py']
+process = subprocess.Popen(command, env=my_env)
+process.wait()
+
+# cleanup
+command = ['python3', 'cleanup.py']
 process = subprocess.Popen(command, env=my_env)
 process.wait()
 
