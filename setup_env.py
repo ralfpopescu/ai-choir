@@ -12,6 +12,7 @@ env_name = "env3.8"
 
 # Check if the environment already exists
 if not os.path.exists(env_name):
+    print(f"Setting up env for python 3.8...")
     # Create the virtual environment
     command = ['python3.8', '-m', 'venv', env_name]
     process = subprocess.Popen(command, env=my_env)
@@ -29,6 +30,9 @@ file_path = 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_
 
 if not os.path.exists('output'):
     os.makedirs('output', exist_ok=True)
+    
+if not os.path.exists('so-vits-svc/so-vits-svc-4.1-Stable/results'):
+    os.makedirs('so-vits-svc/so-vits-svc-4.1-Stable/results', exist_ok=True)
 
 # download content vec
 if not os.path.exists(file_path):
