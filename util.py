@@ -41,7 +41,6 @@ def get_speakers():
 def get_config():
     with open('config.json', 'r') as file:
         data = json.load(file)
-        print(data)
     return data
 
 def check_config():
