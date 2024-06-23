@@ -26,19 +26,4 @@ if not os.path.exists('so-vits-svc'):
     zip_file_path = 'so-vits-svc.zip'
     extract_to_path = 'so-vits-svc'
     unzip_file(zip_file_path, extract_to_path)
-
-
-file_path = 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt'
-
-# download content vec
-if not os.path.exists(file_path):
-    os.makedirs('so-vits-svc/so-vits-svc-4.1-Stable/pretrain', exist_ok=True)
-
-    command = [
-        'curl', 
-        '-L', 
-        '-o', 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt', 
-        'https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/hubert_base.pt'
-    ]
-    process = subprocess.Popen(command)
-    process.wait()
+ 

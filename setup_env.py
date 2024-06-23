@@ -24,3 +24,18 @@ else:
 activate_and_install = f"source {env_name}/bin/activate && pip3 install -r requirements.txt"
 process = subprocess.Popen(activate_and_install, env=my_env, shell=True, executable='/bin/bash')
 process.wait()
+
+file_path = 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt'
+
+# download content vec
+if not os.path.exists(file_path):
+    os.makedirs('so-vits-svc/so-vits-svc-4.1-Stable/pretrain', exist_ok=True)
+
+    command = [
+        'curl', 
+        '-L', 
+        '-o', 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt', 
+        'https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/hubert_base.pt'
+    ]
+    process = subprocess.Popen(command)
+    process.wait()
