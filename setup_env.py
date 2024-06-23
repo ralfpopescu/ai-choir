@@ -27,6 +27,9 @@ process.wait()
 
 file_path = 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt'
 
+if not os.path.exists('output'):
+    os.makedirs('output', exist_ok=True)
+
 # download content vec
 if not os.path.exists(file_path):
     os.makedirs('so-vits-svc/so-vits-svc-4.1-Stable/pretrain', exist_ok=True)
