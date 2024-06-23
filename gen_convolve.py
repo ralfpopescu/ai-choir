@@ -32,7 +32,7 @@ if input_signal.ndim == 1:
         convolved_signal = np.pad(convolved_signal, (0, len(input_signal) - len(convolved_signal)), 'constant')
 
     # Mix the dry and wet signals (50% dry, 50% wet)
-    dry_wet_ratio = config.convolution_reverb_dry_wet
+    dry_wet_ratio = config["convolution_reverb_dry_wet"]
     mixed_signal = dry_wet_ratio * convolved_signal + (1 - dry_wet_ratio) * input_signal
 
 else:
@@ -56,7 +56,7 @@ else:
     # Convert the list of channels back to a NumPy array
     convolved_signal = np.array(convolved_signal)
 
-    dry_wet_ratio = config.convolution_reverb_dry_wet
+    dry_wet_ratio = config["convolution_reverb_dry_wet"]
     # Mix the dry and wet signals (50% dry, 50% wet) for each channel
     mixed_signal = []
     for channel in range(input_signal.shape[0]):

@@ -3,7 +3,9 @@ import os
 import json
 import shutil
 import sys
-from util import get_models
+from util import get_models, run_command, check_config
+
+check_config()
 
 def build_command(speaker, folder):
     return [
@@ -29,12 +31,6 @@ def move_and_rename_file(file_path, destination_dir):
 def is_wav_file(file_path):
     return file_path.lower().endswith('.wav')
 
-# Create a copy of the current environment
-my_env = os.environ.copy()
-
-# Update the PATH variable to include additional paths
-my_env["PATH"] = f"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{my_env['PATH']}"
-
 if len(sys.argv) != 2:
         print("Usage: python script.py <path_to_wav_file>")
         sys.exit(1)
@@ -49,9 +45,8 @@ if not is_wav_file(file_path):
     print(f"Error: The file '{file_path}' is not a WAV file.")
     sys.exit(1)
 
-command = ['python3', 'setup_env.py']
-process = subprocess.Popen(command, env=my_env)
-process.wait()
+
+run_command(['python3', 'setup_env.py'])
     
 destination_dir = './so-vits-svc/so-vits-svc-4.1-Stable/raw'
 move_and_rename_file(file_path, destination_dir)
@@ -62,35 +57,23 @@ original_directory = os.getcwd()
 os.chdir('./so-vits-svc/so-vits-svc-4.1-Stable')
 
 # generate output for each model
-for folder, spk in models:
-    command = build_command(spk, folder)
-    process = subprocess.Popen(command, env=my_env)
-    process.wait()
+# for folder, spk in models:
+#     run_command(build_command(spk, folder))
 
 os.chdir(original_directory)
 # process each individual voice
-command = ['python3', 'gen_process.py']
-process = subprocess.Popen(command, env=my_env)
-process.wait()
+run_command(['python3', 'gen_process.py'])
 
 # curve noisy models
-command = ['python3', 'gen_curve.py']
-process = subprocess.Popen(command, env=my_env)
-process.wait()
+run_command(['python3', 'gen_curve.py'])
 
 # combine them all into the choir
-command = ['python3', 'gen_combine.py']
-process = subprocess.Popen(command, env=my_env)
-process.wait()
+run_command(['python3', 'gen_combine.py'])
 
 # add convolution reverb
-command = ['python3', 'gen_convolve.py']
-process = subprocess.Popen(command, env=my_env)
-process.wait()
+run_command(['python3', 'gen_convolve.py'])
 
 # cleanup
-command = ['python3', 'cleanup.py']
-process = subprocess.Popen(command, env=my_env)
-process.wait()
+run_command(['python3', 'cleanup.py'])
 
 print('Done! See result in output folder.')

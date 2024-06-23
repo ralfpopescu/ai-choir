@@ -1,7 +1,13 @@
-from util import get_models
+from util import get_models, get_config
 import os
+import sys
 
 models = get_models()
+config = get_config()
+
+if config["cleanup"] == False:
+    print(f"Skipping cleanup.")
+    sys.exit()
 
 files = ['./output/to_convolve.mp3','./so-vits-svc/so-vits-svc-4.1-Stable/raw/input.wav']
 

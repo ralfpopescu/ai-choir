@@ -1,5 +1,7 @@
 import os
 import json
+import subprocess
+import sys
 
 def get_models():
     result = []
@@ -39,4 +41,48 @@ def get_speakers():
 def get_config():
     with open('config.json', 'r') as file:
         data = json.load(file)
+        print(data)
     return data
+
+def check_config():
+    file_path = 'config.json'
+    required_fields = [
+        "cleanup",
+        "convolution_reverb_dry_wet",
+        "stereo_spread",
+        "drift",
+        "base_detune",
+        "detune_drift",
+        "detune_frequency",
+        "output_gain"
+    ]
+    
+    try:
+        config = get_config()
+    except FileNotFoundError:
+        raise Exception(f"The file {file_path} does not exist.")
+    except json.JSONDecodeError:
+        raise Exception(f"The file {file_path} is not a valid JSON file.")
+
+    missing_fields = [field for field in required_fields if field not in config]
+
+    if missing_fields:
+        raise Exception(f"The following required fields are missing in the config: {', '.join(missing_fields)}")
+
+    if config["detune_drift"] * 4 > config["base_detune"]:
+        raise Exception(f"detune_drift can't be more than 25% of base_detune")
+    
+    return config
+
+
+def run_command(command):
+    # Create a copy of the current environment
+    env = os.environ.copy()
+
+    # Update the PATH variable to include additional paths
+    env["PATH"] = f"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{env['PATH']}"
+    process = subprocess.Popen(command, env=env)
+    process.wait()
+    if process.returncode != 0:
+        print(f"Command {command} failed with return code {process.returncode}")
+        sys.exit(process.returncode)

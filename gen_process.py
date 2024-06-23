@@ -9,14 +9,14 @@ config = get_config()
 def gen_input_file(speaker):
     return f'./so-vits-svc/so-vits-svc-4.1-Stable/results/input.wav_0key_{speaker}_sovits_pm.flac'
 
-base_detune = config.base_detune
+base_detune = config["base_detune"]
 
 def generate_amount(idx):
     if idx % 6 == 0:
         return base_detune / 2
     if idx % 2 == 0:
-        return base_detune + (idx % 4 * config.drift)
-    return base_detune - (idx % 4 * config.drift)
+        return base_detune + (idx % 4 * config["detune_drift"])
+    return base_detune - (idx % 4 * config["detune_drift"])
 
 def generate_random_segment_length():
     return random.randrange(400,1100)
@@ -36,12 +36,12 @@ for idx, speaker in enumerate(get_speakers()):
 
     # just in case a new model is added to the folder, we'll check for that
     segment_length = 100
-    if(idx >= segment_lengths.length):
+    if(idx >= len(segment_lengths)):
         segment_length = generate_random_segment_length()
-    else
+    else:
         segment_length = segment_lengths[idx]
 
-    segment_length = segment_length * detune_frequency
+    segment_length = int(segment_length * config["detune_frequency"])
 
     # Load the audio file
     audio = AudioSegment.from_file(file)
@@ -55,6 +55,7 @@ for idx, speaker in enumerate(get_speakers()):
     # Determine if the file should start by slowing down or speeding up
     start_slow_down = idx % 2
 
+    print("segment_length", segment_length)
 
     # Process each segment
     for i in range(0, duration_ms, segment_length):
@@ -67,6 +68,7 @@ for idx, speaker in enumerate(get_speakers()):
             speed = 1.0 / (1.0 - amount)
 
         # Change the speed of the segment
+        print(segment, speed)
         processed_segment = change_speed(segment, speed)
 
         # Adjust the length of the processed segment to match the original segment length
@@ -84,7 +86,7 @@ for idx, speaker in enumerate(get_speakers()):
     # Combine all processed segments
     final_audio = sum(processed_segments)
 
-    final_audio = final_audio + config.output_gain
+    final_audio = final_audio + config["output_gain"]
 
     # Export the final audio
     final_audio.export(f"./output/{speaker}.mp3", format="mp3")

@@ -6,7 +6,7 @@ import random
 import os
 
 config = get_config()
-pan_amount = config.stereo_spread
+pan_amount = config["stereo_spread"]
 
 models = get_models()
 
