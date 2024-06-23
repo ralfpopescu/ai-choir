@@ -1,18 +1,25 @@
 from pydub import AudioSegment
 import math
 import os
-from util import get_speakers
+from util import get_speakers, get_config
 import random
+
+config = get_config()
 
 def gen_input_file(speaker):
     return f'./so-vits-svc/so-vits-svc-4.1-Stable/results/input.wav_0key_{speaker}_sovits_pm.flac'
 
-base_detune = .014
+base_detune = config.base_detune
 
 def generate_amount(idx):
+    if idx % 6 == 0:
+        return base_detune / 2
     if idx % 2 == 0:
-        return base_detune + (idx % 4 * 0.001)
-    return base_detune - (idx % 4 * 0.001)
+        return base_detune + (idx % 4 * config.drift)
+    return base_detune - (idx % 4 * config.drift)
+
+def generate_random_segment_length():
+    return random.randrange(400,1100)
 
 segment_lengths = [400, 600, 800, 1000, 500, 700, 900]
 
@@ -26,7 +33,15 @@ def change_speed(segment, speed=1.0):
 for idx, speaker in enumerate(get_speakers()):
     file = gen_input_file(speaker)
     amount = generate_amount(idx)
-    segment_length = segment_lengths[idx]
+
+    # just in case a new model is added to the folder, we'll check for that
+    segment_length = 100
+    if(idx >= segment_lengths.length):
+        segment_length = generate_random_segment_length()
+    else
+        segment_length = segment_lengths[idx]
+
+    segment_length = segment_length * detune_frequency
 
     # Load the audio file
     audio = AudioSegment.from_file(file)
@@ -38,10 +53,8 @@ for idx, speaker in enumerate(get_speakers()):
     processed_segments = []
 
     # Determine if the file should start by slowing down or speeding up
-    if idx % 2 == 0:
-        start_slow_down = True
-    else:
-        start_slow_down = False
+    start_slow_down = idx % 2
+
 
     # Process each segment
     for i in range(0, duration_ms, segment_length):
@@ -71,7 +84,7 @@ for idx, speaker in enumerate(get_speakers()):
     # Combine all processed segments
     final_audio = sum(processed_segments)
 
-    final_audio = final_audio - 10
+    final_audio = final_audio + config.output_gain
 
     # Export the final audio
     final_audio.export(f"./output/{speaker}.mp3", format="mp3")

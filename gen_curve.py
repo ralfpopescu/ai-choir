@@ -2,7 +2,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 
-should_curve_filenames = ['female-3.mp3', 'male-2.mp3', 'male-4.mp3']
+should_curve_filenames = ['female-3.mp3', 'male-2.mp3']
 
 # Iterate over input files 1-6
 for filename in should_curve_filenames:

@@ -3,7 +3,7 @@ import os
 
 models = get_models()
 
-files = ['./output/to_convolve.mp3']
+files = ['./output/to_convolve.mp3','./so-vits-svc/so-vits-svc-4.1-Stable/raw/input.wav']
 
 for folder, spk in models:
     files.append(f"./output/{spk}.mp3")

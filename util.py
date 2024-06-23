@@ -35,3 +35,8 @@ def get_speakers():
                     spk_key = list(config_data['spk'].keys())[0]
                     result.append(spk_key)
     return result
+
+def get_config():
+    with open('config.json', 'r') as file:
+        data = json.load(file)
+    return data

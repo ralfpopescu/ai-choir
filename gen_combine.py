@@ -1,10 +1,12 @@
 from pydub import AudioSegment
 from pydub.effects import normalize, pan
-from util import get_models
+from util import get_models, get_config
 import time
+import random
 import os
 
-pan_amount = 1.5
+config = get_config()
+pan_amount = config.stereo_spread
 
 models = get_models()
 
@@ -22,6 +24,9 @@ file_to_pan = {
     "./output/male-3.mp3": -0.15,
 }
 
+def get_random_pan():
+    return random.randrange(0, 25) / 100
+
 # Load and normalize each file
 normalized_audios = []
 for file in files:
@@ -32,7 +37,12 @@ for file in files:
 # Pan each normalized audio file slightly left or right, alternating
 panned_audios = []
 for i, audio in enumerate(normalized_audios):
-    file_pan = file_to_pan[files[i]]
+    # produce a random pan if we've added unaccounted models
+    file_pan = 0
+    if files[i] in file_to_pan:
+        file_pan = file_to_pan[files[i]]
+    else:
+        file_pan = get_random_pan()
     panned_audio = pan(audio, pan_amount * file_pan)  # Adjust pan value as needed
     panned_audios.append(panned_audio)
 
