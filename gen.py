@@ -56,7 +56,7 @@ models = get_models()
 original_directory = os.getcwd()
 os.chdir('./so-vits-svc/so-vits-svc-4.1-Stable')
 
-generate output for each model
+#generate output for each model
 for folder, spk in models:
     run_command(build_command(spk, folder))
 

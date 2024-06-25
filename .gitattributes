@@ -1,7 +1,0 @@
-models/female-1/model.pth filter=lfs diff=lfs merge=lfs -text
-models/female-2/model.pth filter=lfs diff=lfs merge=lfs -text
-models/female-3/model.pth filter=lfs diff=lfs merge=lfs -text
-models/female-4/model.pth filter=lfs diff=lfs merge=lfs -text
-models/male-1/model.pth filter=lfs diff=lfs merge=lfs -text
-models/male-2/model.pth filter=lfs diff=lfs merge=lfs -text
-models/male-3/model.pth filter=lfs diff=lfs merge=lfs -text
