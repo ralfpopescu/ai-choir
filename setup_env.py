@@ -1,6 +1,7 @@
 import subprocess
 import os
 import requests
+from util import run_command
 
 # Create a copy of the current environment
 my_env = os.environ.copy()
@@ -15,9 +16,7 @@ env_name = "env3.8"
 if not os.path.exists(env_name):
     print(f"Setting up env for python 3.8...")
     # Create the virtual environment
-    command = ['python3.8', '-m', 'venv', env_name]
-    process = subprocess.Popen(command, env=my_env)
-    process.wait()
+    run_command(['python3.8', '-m', 'venv', env_name])
 else:
     print(f"The virtual environment '{env_name}' already exists.")
 
@@ -39,11 +38,13 @@ if not os.path.exists('so-vits-svc/so-vits-svc-4.1-Stable/results'):
 if not os.path.exists(file_path):
     os.makedirs('so-vits-svc/so-vits-svc-4.1-Stable/pretrain', exist_ok=True)
 
-    command = [
+    run_command([
         'curl', 
         '-L', 
         '-o', 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt', 
         'https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/hubert_base.pt'
-    ]
-    process = subprocess.Popen(command)
-    process.wait()
+    ])
+
+# download models
+run_command(['python3', 'download_models.py'])
+
