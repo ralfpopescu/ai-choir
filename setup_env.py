@@ -4,10 +4,10 @@ import requests
 from util import run_command
 
 # Create a copy of the current environment
-my_env = os.environ.copy()
+env = os.environ.copy()
 
 # Update the PATH variable to include additional paths
-my_env["PATH"] = f"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{my_env['PATH']}"
+env["PATH"] = f"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{env['PATH']}"
 
 # Define the environment name
 env_name = "env3.8"
@@ -22,8 +22,10 @@ else:
 
 
 # Activate the environment and install requirements
-activate_and_install = f"source {env_name}/bin/activate && pip3 install -r requirements.txt"
-process = subprocess.Popen(activate_and_install, env=my_env, shell=True, executable='/bin/bash')
+process = subprocess.Popen(f"source {env_name}/bin/activate", env=env, shell=True, executable='/bin/bash')
+process.wait()
+
+process = subprocess.Popen("pip3 install -r requirements.txt", env=env, shell=True, executable='/bin/bash')
 process.wait()
 
 file_path = 'so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt'
