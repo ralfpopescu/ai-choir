@@ -55,8 +55,6 @@ for idx, speaker in enumerate(get_speakers()):
     # Determine if the file should start by slowing down or speeding up
     start_slow_down = idx % 2
 
-    print("segment_length", segment_length)
-
     # Process each segment
     for i in range(0, duration_ms, segment_length):
         segment = audio[i:i + segment_length]
@@ -68,7 +66,6 @@ for idx, speaker in enumerate(get_speakers()):
             speed = 1.0 / (1.0 - amount)
 
         # Change the speed of the segment
-        print(segment, speed)
         processed_segment = change_speed(segment, speed)
 
         # Adjust the length of the processed segment to match the original segment length

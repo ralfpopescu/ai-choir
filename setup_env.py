@@ -1,18 +1,6 @@
 import subprocess
 import os
 import requests
-import default_models from util
-
-def get_download_link(file_id):
-    return f'https://drive.google.com/uc?id={file_id}'
-
-for model in default_models:
-    response = requests.get(get_download_link(model["fileId"]))
-    # Save the file
-    with open(model[path], 'wb') as f:
-        f.write(response.content)
-
-print('File downloaded successfully!')
 
 # Create a copy of the current environment
 my_env = os.environ.copy()
