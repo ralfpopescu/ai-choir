@@ -30,3 +30,4 @@ faiss-cpu
 einops
 local_attention
 librosa
+gdown

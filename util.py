@@ -3,6 +3,17 @@ import json
 import subprocess
 import sys
 
+
+default_models = [
+    # {"fileId": "123", "path": "./models/female-1"},
+    # {"fileId": "456", "path": "./models/female-2"},
+    # {"fileId": "456", "path": "./models/female-3"},
+    # {"fileId": "456", "path": "./models/female-4"},
+    # {"fileId": "456", "path": "./models/male-1"},
+    # {"fileId": "456", "path": "./models/male-2"},
+    {"fileId": "1EhulXaigTfnjw3RTFUZsKVVhD7zyxwWC", "path": "./models/male-3"},
+]
+
 def get_models():
     result = []
     base_path = "./models"
