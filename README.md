@@ -2,7 +2,9 @@
 
 ## Description
 
-ai-choir transform any singing vocal into a choir rendition, best used to add crowd-like doubles to the vocal or generally as a supercharged chorus effect. It works by using AI to transform the vocal into several different voices (sopranos, tenors and altos), applying detuning/dequantizing, and layering them together.
+ai-choir transforms any singing vocal into a choir rendition, best used to add crowd-like doubles or generally as a supercharged chorus effect. It works by using AI to transform the vocal into several different voices (sopranos, tenors and altos), applying detuning/dequantizing, and layering them together.
+
+demo: https://www.tiktok.com/@popeskasounds/video/7375255624751353131
 
 ## Installation
 
