@@ -1,10 +1,10 @@
 {
     "cleanup": true,
-    "convolution_reverb_dry_wet": 0.5,
+    "convolution_reverb_dry_wet": 0.2,
     "stereo_spread": 1.5,
-    "drift": 1.0,
+    "drift": 1.2,
     "base_detune": 0.014,
-    "detune_drift": 0.001,
-    "detune_frequency": 1.0,
+    "detune_drift": 0.002,
+    "detune_frequency": 0.3,
     "output_gain": -10
 }

@@ -13,7 +13,11 @@ default_models = [
 ]
 
 def download_file(id, output):
-    gdown.download(id=id, output=output)
+    if not os.path.exists(output):
+        os.makedirs(os.path.dirname(output), exist_ok=True)
+        gdown.download(id=id, output=output)
+    else:
+         print(f"{output} model available.")
 
 for model in default_models:
-   gdown.download(model["fileId"], f'{model["path"]}/model.pth')
+   download_file(model["fileId"], f'{model["path"]}/model.pth')
