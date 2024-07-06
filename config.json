@@ -1,10 +1,17 @@
 {
-    "cleanup": true,
+    "cleanup": false,
     "convolution_reverb_dry_wet": 0.2,
     "stereo_spread": 1.5,
     "drift": 1.2,
     "base_detune": 0.014,
     "detune_drift": 0.002,
     "detune_frequency": 0.3,
-    "output_gain": -10
+    "output_gain": -10,
+    "voice_gain_female_1": 10.0,
+    "voice_gain_female_2": 0.0,
+    "voice_gain_female_3": 10.0,
+    "voice_gain_female_4": 0.0,
+    "voice_gain_male_1": 0.0,
+    "voice_gain_male_2": 10.0,
+    "voice_gain_male_3": 0.0
 }

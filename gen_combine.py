@@ -24,6 +24,16 @@ file_to_pan = {
     "./output/male-3.mp3": -0.15,
 }
 
+file_to_gain_key = {
+    "./output/female-1.mp3": "voice_gain_female_1",
+    "./output/female-2.mp3": "voice_gain_female_2",
+    "./output/female-3.mp3": "voice_gain_female_3",
+    "./output/female-4.mp3": "voice_gain_female_4",
+    "./output/male-1.mp3": "voice_gain_male_1",
+    "./output/male-2.mp3": "voice_gain_male_2",
+    "./output/male-3.mp3": "voice_gain_male_3",
+}
+
 def get_random_pan():
     return random.randrange(0, 25) / 100
 
@@ -31,6 +41,13 @@ def get_random_pan():
 normalized_audios = []
 for file in files:
     audio = AudioSegment.from_file(file, format="mp3")
+
+     # Apply gain
+    gain_key = file_to_gain_key.get(file, None)
+    if gain_key and gain_key in config:
+        gain_value = config[gain_key]
+        audio = audio + gain_value
+
     normalized_audio = normalize(audio)
     normalized_audios.append(normalized_audio)
 

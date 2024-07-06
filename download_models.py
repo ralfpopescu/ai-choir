@@ -13,7 +13,6 @@ default_models = [
 ]
 
 def download_file(id, output):
-    print(id)
     if not os.path.exists(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
         gdown.download(id=id, output=output)
