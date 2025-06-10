@@ -1,5 +1,5 @@
 {
-    "cleanup": false,
+    "cleanup": true,
     "convolution_reverb_dry_wet": 0.2,
     "stereo_spread": 1.5,
     "drift": 1.2,

@@ -36,6 +36,65 @@ A cross-platform desktop application for generating choir-like audio from a sing
    python download_models.py
    ```
 
+## Packaging the Application
+
+### For macOS
+
+1. Install create-dmg (required for creating DMG files):
+   ```bash
+   brew install create-dmg
+   ```
+
+2. Run the build script:
+   ```bash
+   chmod +x build_mac.sh
+   ./build_mac.sh
+   ```
+
+3. The packaged application will be available in the `dist` folder as `AI_Choir_Generator.app`
+4. A DMG installer will be created in the root directory
+
+### For Windows
+
+1. Run the build script:
+   ```bash
+   build_windows.bat
+   ```
+
+2. The packaged application will be available in the `dist` folder as `AI_Choir_Generator.exe`
+
+Note: For a more professional Windows installer, you can use NSIS (Nullsoft Scriptable Install System) to create an installer. Uncomment the NSIS line in `build_windows.bat` and install NSIS to use this feature.
+
+### Code Signing for macOS
+
+To distribute your application on macOS, you'll need to sign it with your Apple Developer ID. Here's how:
+
+1. **Get an Apple Developer ID**
+   - Sign up for the [Apple Developer Program](https://developer.apple.com/programs/)
+   - Create a Developer ID Application certificate in Xcode or using the Apple Developer website
+
+2. **Find your Developer ID**
+   ```bash
+   security find-identity -v -p codesigning
+   ```
+   This will show your Developer ID in the format: `Developer ID Application: Your Name (TEAM_ID)`
+
+3. **Sign your application**
+   ```bash
+   chmod +x sign_mac.sh
+   ./sign_mac.sh "Developer ID Application: Your Name (TEAM_ID)"
+   ```
+
+4. **Notarize your application** (optional but recommended)
+   ```bash
+   xcrun notarytool submit AI_Choir_Generator.dmg --apple-id "your.email@example.com" --password "app-specific-password" --team-id "TEAM_ID"
+   ```
+
+Note: For notarization, you'll need to:
+- Enable 2FA on your Apple ID
+- Generate an app-specific password
+- Wait for the notarization process to complete (usually takes a few minutes)
+
 ## Running the Application
 
 ### On macOS
