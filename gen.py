@@ -83,11 +83,7 @@ print("Stage 6: Adding convolution reverb")
 run_command(['python3', 'gen_convolve.py'])
 
 # cleanup
-if check_config()["cleanup"]:
-    print("Stage 7: Cleaning up temporary files")
-    run_command(['python3', 'cleanup.py'])
-else:
-    print("Stage 7: Cleanup skipped (disabled in config)")
+run_command(['python3', 'cleanup.py'])
 
 print('=== GENERATION COMPLETE ===')
 print('Done! See result in output folder.')

@@ -60,7 +60,6 @@ def check_config():
         "cleanup",
         "convolution_reverb_dry_wet",
         "stereo_spread",
-        "drift",
         "base_detune",
         "detune_drift",
         "detune_frequency",

@@ -5,23 +5,25 @@ import subprocess
 import shutil
 import re
 from pathlib import Path
+import appdirs
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QScrollArea, QFormLayout, QDoubleSpinBox,
                              QSpinBox, QCheckBox, QMessageBox, QComboBox, QGroupBox,
                              QProgressBar)
-from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QFontDatabase, QFont
+from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtGui import QFontDatabase, QFont, QIcon
 
 class GenerationWorker(QThread):
     finished = Signal(bool, str)
     progress = Signal(int)
     status_update = Signal(str)
     
-    def __init__(self, input_file, output_dir):
+    def __init__(self, input_file, output_dir, impulse_file):
         super().__init__()
         self.input_file = input_file
         self.output_dir = output_dir
+        self.impulse_file = impulse_file
         self.process = None
         
     def run(self):
@@ -39,6 +41,10 @@ class GenerationWorker(QThread):
             # Create arrays to store the output for debugging
             stdout_data = []
             stderr_data = []
+            
+            # If an impulse file is specified, copy it to the working directory
+            if self.impulse_file and os.path.exists(self.impulse_file):
+                shutil.copy2(self.impulse_file, 'impulse.wav')
             
             # Run the generation script
             self.process = subprocess.Popen(
@@ -187,10 +193,37 @@ class GenerationWorker(QThread):
 
 
 class AIChoirApp(QMainWindow):
+    # Configuration descriptions and ranges
+    config_info = {
+        "impulse_file": ("Select an impulse response file for convolution reverb", ""),
+        "convolution_reverb_dry_wet": ("Adds convolution reverb to the output. Switch out the impulse.wav file for whatever impulse response you want!", "0 - 1.0"),
+        "stereo_spread": ("How panned the voices should be. 0 is mono, 4.0 will be hard left/right", "0 to 4.0"),
+        "base_detune": ("How detuned the voices should be", "0 to 0.05"),
+        "detune_drift": ("How much the voices should fluctuate around the base detuning", "0 to 25% of base_detune"),
+        "detune_frequency": ("How long voices will linger on a detuned note", "0 to 5.0"),
+        "output_gain": ("Apply gain to the output", "-inf to inf"),
+        "voice_gain_female_1": ("Gain for female voice 1", "-inf to inf"),
+        "voice_gain_female_2": ("Gain for female voice 2", "-inf to inf"),
+        "voice_gain_female_3": ("Gain for female voice 3", "-inf to inf"),
+        "voice_gain_female_4": ("Gain for female voice 4", "-inf to inf"),
+        "voice_gain_male_1": ("Gain for male voice 1", "-inf to inf"),
+        "voice_gain_male_2": ("Gain for male voice 2", "-inf to inf"),
+        "voice_gain_male_3": ("Gain for male voice 3", "-inf to inf"),
+        "cleanup": ("Whether to clean up temporary files after generation", "true/false")
+    }
+
     def __init__(self):
         super().__init__()
+        # Set up config directory
+        self.config_dir = Path(appdirs.user_config_dir("ai-choir", appauthor=False))
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        self.config_file = self.config_dir / "config.json"
+        
         self.initUI()
         self.apply_styles()
+        
+        # Connect config change signals
+        self.connect_config_signals()
         
     def initUI(self):
         self.setWindowTitle("AI Choir Generator")
@@ -200,6 +233,29 @@ class AIChoirApp(QMainWindow):
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         main_layout.setSpacing(5)  # Reduced from 10
+        
+        # Title section
+        title_layout = QHBoxLayout()
+        title_label = QLabel("AI Choir")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 24px;
+                font-weight: bold;
+                color: black;
+            }
+        """)
+        subtitle_label = QLabel("by offwhite")
+        subtitle_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: black;
+                margin-left: 10px;
+            }
+        """)
+        title_layout.addWidget(title_label)
+        title_layout.addWidget(subtitle_label)
+        title_layout.addStretch()
+        main_layout.addLayout(title_layout)
         
         # Input file section
         input_group = QGroupBox("Input Audio File")
@@ -251,48 +307,101 @@ class AIChoirApp(QMainWindow):
         self.config = self.get_config()
         self.config_widgets = {}
         
-        # Configuration descriptions and ranges
-        config_info = {
-            "cleanup": ("Whether to clean up interim files", "true/false"),
-            "convolution_reverb_dry_wet": ("Adds convolution reverb to the output. Switch out the impulse.wav file for whatever impulse response you want!", "0 - 1.0"),
-            "stereo_spread": ("How panned the voices should be. 0 is mono, 4.0 will be hard left/right", "0 to 4.0"),
-            "base_detune": ("How detuned the voices should be", "0 to 0.05"),
-            "detune_drift": ("How much the voices should fluctuate around the base detuning", "0 to 25% of base_detune"),
-            "detune_frequency": ("How long voices will linger on a detuned note", "0 to 5.0"),
-            "output_gain": ("Apply gain to the output", "-inf to inf"),
-            "voice_gain_female_1": ("Gain for female voice 1", "-inf to inf"),
-            "voice_gain_female_2": ("Gain for female voice 2", "-inf to inf"),
-            "voice_gain_female_3": ("Gain for female voice 3", "-inf to inf"),
-            "voice_gain_female_4": ("Gain for female voice 4", "-inf to inf"),
-            "voice_gain_male_1": ("Gain for male voice 1", "-inf to inf"),
-            "voice_gain_male_2": ("Gain for male voice 2", "-inf to inf"),
-            "voice_gain_male_3": ("Gain for male voice 3", "-inf to inf")
-        }
-        
         # Define which fields go in which column
         left_column_fields = [
-            "cleanup", "convolution_reverb_dry_wet", "stereo_spread",
+            "impulse_file", "convolution_reverb_dry_wet", "stereo_spread",
             "base_detune", "detune_drift", "detune_frequency", "output_gain"
         ]
         
         # Create form fields for each configuration item
         for key, value in self.config.items():
+            # Skip cleanup setting
+            if key == "cleanup":
+                continue
+                
+            if key == "impulse_file":
+                # Create a horizontal layout for the impulse file selector
+                impulse_layout = QHBoxLayout()
+                impulse_layout.setSpacing(2)
+                impulse_layout.setContentsMargins(0, 0, 0, 0)
+                
+                # Create the line edit and browse button
+                impulse_edit = QLineEdit()
+                impulse_edit.setText("default" if not value else str(value))
+                impulse_edit.setReadOnly(True)
+                impulse_edit.setPlaceholderText("default")
+                impulse_edit.setFixedWidth(100)
+                if not value:
+                    impulse_edit.setStyleSheet("color: gray;")
+                
+                impulse_browse = QPushButton("Browse")
+                impulse_browse.setFixedWidth(80)
+                impulse_browse.clicked.connect(lambda: self.browse_impulse_file(impulse_edit))
+                
+                # Add help button
+                help_button = QPushButton("?")
+                help_button.setFixedSize(20, 20)
+                help_button.setToolTip("Select an impulse response file for convolution reverb")
+                help_button.setStyleSheet("""
+                    QPushButton {
+                        border-radius: 10px;
+                        font-weight: bold;
+                        padding: 0px;
+                        margin-left: 5px;
+                        background-color: transparent;
+                        border: 1px solid black;
+                        color: black !important;
+                    }
+                """)
+                
+                impulse_layout.addWidget(impulse_edit)
+                impulse_layout.addWidget(impulse_browse)
+                impulse_layout.addWidget(help_button)
+                
+                # Create a widget to hold the layout
+                impulse_widget = QWidget()
+                impulse_widget.setLayout(impulse_layout)
+                impulse_widget.setContentsMargins(0, 0, 0, 0)
+                
+                left_column.addRow("Impulse File", impulse_widget)
+                self.config_widgets[key] = impulse_edit
+                continue
+                
             if isinstance(value, bool):
                 widget = QCheckBox()
                 widget.setChecked(value)
-            elif isinstance(value, int):
-                widget = QSpinBox()
-                widget.setRange(-100, 100)
-                widget.setValue(value)
-            elif isinstance(value, float):
+            elif isinstance(value, (int, float)):
                 widget = QDoubleSpinBox()
-                widget.setRange(-100, 100)
+                min_val, max_val = self.parse_range(self.config_info[key][1])
+                
+                if min_val is not None and max_val is not None:
+                    widget.setRange(min_val, max_val)
+                else:
+                    # Default range for values without specific bounds
+                    widget.setRange(-100, 100)
+                
                 widget.setSingleStep(0.001)
                 widget.setDecimals(3)
-                widget.setValue(value)
+                widget.setValue(float(value))
+                widget.setFixedWidth(100)  # Set fixed width for all spin boxes
+                
+                # Connect value changed signal to enforce range
+                def create_value_changed_handler(widget, key):
+                    def handler():
+                        min_val, max_val = self.parse_range(self.config_info[key][1])
+                        if min_val is not None and max_val is not None:
+                            current = widget.value()
+                            if current < min_val:
+                                widget.setValue(min_val)
+                            elif current > max_val:
+                                widget.setValue(max_val)
+                    return handler
+                
+                widget.valueChanged.connect(create_value_changed_handler(widget, key))
             else:
                 widget = QLineEdit()
                 widget.setText(str(value))
+                widget.setFixedWidth(100)  # Set fixed width for all line edits
             
             # Format key for display (replace underscores with spaces, capitalize)
             display_key = key.replace('_', ' ').title()
@@ -308,8 +417,8 @@ class AIChoirApp(QMainWindow):
             # Always add help button for all fields
             help_button = QPushButton("?")
             help_button.setFixedSize(20, 20)
-            if key in config_info:
-                help_button.setToolTip(f"{config_info[key][0]}\nRange: {config_info[key][1]}")
+            if key in self.config_info:
+                help_button.setToolTip(f"{self.config_info[key][0]}\nRange: {self.config_info[key][1]}")
             else:
                 help_button.setToolTip("No description available")
             help_button.setStyleSheet("""
@@ -320,6 +429,7 @@ class AIChoirApp(QMainWindow):
                     margin-left: 5px;
                     background-color: transparent;
                     border: 1px solid black;
+                    color: black !important;
                 }
             """)
             input_layout.addWidget(help_button)
@@ -341,6 +451,31 @@ class AIChoirApp(QMainWindow):
         columns_layout.addLayout(left_column)
         columns_layout.addLayout(right_column)
         
+        # Add reset button at the bottom of config group
+        reset_button = QPushButton("Reset to Defaults")
+        reset_button.clicked.connect(self.reset_config)
+        reset_button.setStyleSheet("""
+            QPushButton {
+                margin-top: 10px;
+                background-color: #f0f0f0;
+                border: 1px solid #999;
+                border-radius: 3px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+        """)
+        
+        # Create a horizontal layout for the reset button to center it
+        reset_layout = QHBoxLayout()
+        reset_layout.addStretch()
+        reset_layout.addWidget(reset_button)
+        reset_layout.addStretch()
+        
+        # Add the reset layout to the columns layout
+        columns_layout.addLayout(reset_layout)
+        
         # Set the layout directly on the config group
         config_group.setLayout(columns_layout)
         
@@ -350,7 +485,7 @@ class AIChoirApp(QMainWindow):
         main_layout.addWidget(config_group)
         
         # Progress section
-        progress_group = QGroupBox("Generation Progress")
+        progress_group = QGroupBox()  # Removed the title
         progress_layout = QVBoxLayout()
         
         # Status label
@@ -377,11 +512,34 @@ class AIChoirApp(QMainWindow):
         
     def apply_styles(self):
         # Load and register the custom font
-        font_id = QFontDatabase.addApplicationFont("font.ttf")
-        if font_id != -1:
-            font_family = QFontDatabase.applicationFontFamilies(font_id)[0]
-            app = QApplication.instance()
-            app.setFont(QFont(font_family))
+        try:
+            font_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "font.ttf")
+            print(f"Attempting to load font from: {font_path}")
+            font_id = QFontDatabase.addApplicationFont(font_path)
+            if font_id != -1:
+                font_family = QFontDatabase.applicationFontFamilies(font_id)[0]
+                print(f"Successfully loaded font family: {font_family}")
+                
+                # Create a font object with specific properties
+                custom_font = QFont(font_family)
+                custom_font.setPointSize(10)  # Set a reasonable default size
+                
+                # Apply font to the application
+                app = QApplication.instance()
+                app.setFont(custom_font)
+                
+                # Apply font to all widgets in the window
+                def apply_font_to_widget(widget):
+                    widget.setFont(custom_font)
+                    for child in widget.findChildren(QWidget):
+                        child.setFont(custom_font)
+                
+                # Apply font to all widgets after the window is shown
+                QTimer.singleShot(0, lambda: apply_font_to_widget(self))
+            else:
+                print("Failed to load font.ttf - font_id is -1")
+        except Exception as e:
+            print(f"Error loading font: {str(e)}")
         
         self.setStyleSheet("""
             QMainWindow {
@@ -402,11 +560,12 @@ class AIChoirApp(QMainWindow):
                 color: black;
             }
             QPushButton {
-                background-color: transparent;
-                border: 1px solid black;
-                border-radius: 5px;
+                background-image: url(bg-button.png);
+                background-position: center;
+                background-repeat: no-repeat;
+                color: white !important;
+                border: none;
                 padding: 8px 16px;
-                color: black;
             }
             QPushButton:hover {
                 background-color: rgba(0, 0, 0, 0.1);
@@ -459,41 +618,97 @@ class AIChoirApp(QMainWindow):
         # Set tooltip delay to 0 to show them immediately
         QApplication.instance().setStyleSheet("QToolTip { show-delay: 0ms; }")
         
+    def connect_config_signals(self):
+        """Connect signals for all config widgets to save on change"""
+        for widget in self.config_widgets.values():
+            if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                widget.valueChanged.connect(self.save_config)
+            elif isinstance(widget, QLineEdit):
+                widget.textChanged.connect(self.save_config)
+            elif isinstance(widget, QCheckBox):
+                widget.stateChanged.connect(self.save_config)
+
     def get_config(self):
         try:
-            with open('config.json', 'r') as file:
-                return json.load(file)
-        except FileNotFoundError:
-            QMessageBox.warning(self, "Warning", "config.json not found. Using default configuration.")
-            return {
-                "cleanup": True,
-                "convolution_reverb_dry_wet": 0.2,
-                "stereo_spread": 1.5,
-                "drift": 1.2,
-                "base_detune": 0.014,
-                "detune_drift": 0.002,
-                "detune_frequency": 0.3,
-                "output_gain": -10,
-                "voice_gain_female_1": 0.0,
-                "voice_gain_female_2": 0.0,
-                "voice_gain_female_3": 0.0,
-                "voice_gain_female_4": 0.0,
-                "voice_gain_male_1": 0.0,
-                "voice_gain_male_2": 0.0,
-                "voice_gain_male_3": 0.0
-            }
+            if self.config_file.exists():
+                with open(self.config_file, 'r') as file:
+                    return json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            QMessageBox.warning(self, "Warning", f"Could not load configuration: {str(e)}\nUsing default configuration.")
         
+        # Default configuration
+        return {
+            "impulse_file": "",
+            "convolution_reverb_dry_wet": 0.2,
+            "stereo_spread": 1.5,
+            "base_detune": 0.014,
+            "detune_drift": 0.002,
+            "detune_frequency": 0.3,
+            "output_gain": -10,
+            "voice_gain_female_1": 0.0,
+            "voice_gain_female_2": 0.0,
+            "voice_gain_female_3": 0.0,
+            "voice_gain_female_4": 0.0,
+            "voice_gain_male_1": 0.0,
+            "voice_gain_male_2": 0.0,
+            "voice_gain_male_3": 0.0,
+            "cleanup": True
+        }
+        
+    def parse_range(self, range_str):
+        """Parse a range string into min and max values."""
+        if range_str == "true/false":
+            return None, None
+        if range_str == "-inf to inf":
+            return float('-inf'), float('inf')
+        
+        # Handle percentage case
+        if "%" in range_str:
+            return None, None  # Will be handled specially
+        
+        # Handle standard range formats
+        range_str = range_str.replace(" ", "")
+        if "to" in range_str:
+            min_val, max_val = range_str.split("to")
+        elif "-" in range_str:
+            min_val, max_val = range_str.split("-")
+        else:
+            return None, None
+            
+        try:
+            return float(min_val), float(max_val)
+        except ValueError:
+            return None, None
+
     def save_config(self):
-        for key, widget in self.config_widgets.items():
-            if isinstance(widget, QCheckBox):
-                self.config[key] = widget.isChecked()
-            elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
-                self.config[key] = widget.value()
-            else:
-                self.config[key] = widget.text()
-        
-        with open('config.json', 'w') as file:
-            json.dump(self.config, file, indent=4)
+        try:
+            for key, widget in self.config_widgets.items():
+                if isinstance(widget, QLineEdit):
+                    # For impulse file, save empty string if it's set to "default"
+                    if key == "impulse_file" and widget.text() == "default":
+                        self.config[key] = ""
+                    else:
+                        self.config[key] = widget.text()
+                elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                    value = widget.value()
+                    min_val, max_val = self.parse_range(self.config_info[key][1])
+                    
+                    # Handle percentage case for detune_drift
+                    if key == "detune_drift" and "%" in self.config_info[key][1]:
+                        base_detune = self.config["base_detune"]
+                        max_val = base_detune * 0.25  # 25% of base_detune
+                        min_val = 0
+                    
+                    if min_val is not None and max_val is not None:
+                        value = max(min_val, min(value, max_val))
+                    
+                    self.config[key] = value
+            
+            # Save to user config directory
+            with open(self.config_file, 'w') as file:
+                json.dump(self.config, file, indent=4)
+        except Exception as e:
+            QMessageBox.warning(self, "Warning", f"Could not save configuration: {str(e)}")
     
     def browse_input_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -509,6 +724,17 @@ class AIChoirApp(QMainWindow):
         if dir_path:
             self.output_path.setText(dir_path)
     
+    def browse_impulse_file(self, line_edit):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Impulse Response File", "", "WAV Files (*.wav)"
+        )
+        if file_path:
+            line_edit.setText(file_path)
+            line_edit.setStyleSheet("color: black;")
+        else:
+            line_edit.setText("default")
+            line_edit.setStyleSheet("color: gray;")
+    
     def generate_choir(self):
         input_file = self.input_path.text()
         output_dir = self.output_path.text()
@@ -520,16 +746,31 @@ class AIChoirApp(QMainWindow):
         if not os.path.exists(input_file):
             QMessageBox.warning(self, "Warning", "The selected input file does not exist.")
             return
+            
+        # Get impulse file path, use default if none selected
+        impulse_file = self.config_widgets["impulse_file"].text()
+        if impulse_file == "default":
+            impulse_file = ""
+        elif not os.path.exists(impulse_file):
+            QMessageBox.warning(self, "Warning", "The selected impulse file does not exist.")
+            return
         
         # Save configuration
         self.save_config()
+        
+        # Copy config file to current working directory
+        try:
+            shutil.copy2(self.config_file, 'config.json')
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to copy configuration file: {str(e)}")
+            return
         
         # Reset and show progress UI
         self.progress_bar.setValue(0)
         self.status_label.setText("Starting generation...")
         
         # Create and start the worker thread
-        self.worker = GenerationWorker(input_file, output_dir)
+        self.worker = GenerationWorker(input_file, output_dir, impulse_file)
         self.worker.progress.connect(self.update_progress)
         self.worker.status_update.connect(self.update_status)
         self.worker.finished.connect(self.generation_finished)
@@ -549,9 +790,90 @@ class AIChoirApp(QMainWindow):
             self.status_label.setText("Generation failed")
             QMessageBox.critical(self, "Error", message)
 
+    def reset_config(self):
+        """Reset all configuration values to their defaults"""
+        reply = QMessageBox.question(
+            self,
+            "Reset Configuration",
+            "Are you sure you want to reset all settings to their default values?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # Get default configuration
+            default_config = {
+                "impulse_file": "",
+                "convolution_reverb_dry_wet": 0.2,
+                "stereo_spread": 1.5,
+                "base_detune": 0.014,
+                "detune_drift": 0.002,
+                "detune_frequency": 0.3,
+                "output_gain": -10,
+                "voice_gain_female_1": 0.0,
+                "voice_gain_female_2": 0.0,
+                "voice_gain_female_3": 0.0,
+                "voice_gain_female_4": 0.0,
+                "voice_gain_male_1": 0.0,
+                "voice_gain_male_2": 0.0,
+                "voice_gain_male_3": 0.0,
+                "cleanup": True
+            }
+            
+            # Update all widgets with default values
+            for key, value in default_config.items():
+                widget = self.config_widgets.get(key)
+                if widget is not None:
+                    if isinstance(widget, QLineEdit):
+                        if key == "impulse_file":
+                            widget.setText("default")
+                            widget.setStyleSheet("color: gray;")
+                        else:
+                            widget.setText(str(value))
+                    elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                        widget.setValue(float(value))
+                    elif isinstance(widget, QCheckBox):
+                        widget.setChecked(bool(value))
+            
+            # Update the config dictionary
+            self.config = default_config.copy()
+            
+            # Save the reset configuration
+            self.save_config()
+            
+            QMessageBox.information(
+                self,
+                "Configuration Reset",
+                "All settings have been reset to their default values."
+            )
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    # Set application icon based on platform
+    icon_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Define icon paths based on platform
+    if sys.platform.startswith('darwin'):  # macOS
+        icon_paths = ["icon.icns", "icon.png"]
+    elif sys.platform.startswith('win'):  # Windows
+        icon_paths = ["icon.ico", "icon.png"]
+    else:  # Linux and others
+        icon_paths = ["icon.png"]
+    
+    # Try each icon path
+    icon_path = None
+    for icon_name in icon_paths:
+        full_path = os.path.join(icon_dir, icon_name)
+        if os.path.exists(full_path):
+            icon_path = full_path
+            break
+    
+    if icon_path:
+        app_icon = QIcon(icon_path)
+        app.setWindowIcon(app_icon)
+    
     window = AIChoirApp()
     window.show()
     sys.exit(app.exec()) 
