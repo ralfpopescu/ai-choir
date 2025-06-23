@@ -14,6 +14,16 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QFontDatabase, QFont, QIcon
 
+def get_resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, relative_path)
+
 class GenerationWorker(QThread):
     finished = Signal(bool, str)
     progress = Signal(int)
@@ -499,7 +509,7 @@ class AIChoirApp(QMainWindow):
     def apply_styles(self):
         # Load and register the custom font
         try:
-            font_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "font.ttf")
+            font_path = get_resource_path("font.ttf")
             print(f"Attempting to load font from: {font_path}")
             font_id = QFontDatabase.addApplicationFont(font_path)
             if font_id != -1:
@@ -527,103 +537,103 @@ class AIChoirApp(QMainWindow):
         except Exception as e:
             print(f"Error loading font: {str(e)}")
         
-        self.setStyleSheet("""
-            QMainWindow {
-                background-image: url(bg.png);
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-image: url({get_resource_path("bg.png")});
                 background-position: center;
                 background-repeat: no-repeat;
                 background-attachment: fixed;
-            }
-            QGroupBox {
+            }}
+            QGroupBox {{
                 background-color: transparent;
                 border: none;
                 margin-top: 1em;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 5px;
                 color: black;
-            }
-            QPushButton {
-                background-image: url(bg-button.png);
+            }}
+            QPushButton {{
+                background-image: url({get_resource_path("bg-button.png")});
                 background-position: center;
                 background-repeat: no-repeat;
                 color: white !important;
                 border: none;
                 padding: 8px 16px;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: rgba(0, 0, 0, 0.1);
-            }
-            QLineEdit, QSpinBox, QDoubleSpinBox {
+            }}
+            QLineEdit, QSpinBox, QDoubleSpinBox {{
                 background-color: transparent;
                 border: 1px solid black;
                 border-radius: 5px;
                 padding: 5px;
                 color: black;
-            }
-            QSlider::groove:horizontal {
+            }}
+            QSlider::groove:horizontal {{
                 border: 1px solid black;
                 height: 8px;
                 background: transparent;
                 border-radius: 4px;
                 margin: 2px 0;
-            }
-            QSlider::handle:horizontal {
+            }}
+            QSlider::handle:horizontal {{
                 background: black;
                 border: 1px solid black;
                 width: 18px;
                 margin: -2px 0;
                 border-radius: 9px;
-            }
-            QSlider::handle:horizontal:hover {
+            }}
+            QSlider::handle:horizontal:hover {{
                 background: #333;
-            }
-            QSlider::sub-page:horizontal {
+            }}
+            QSlider::sub-page:horizontal {{
                 background: rgba(0, 0, 0, 0.2);
                 border-radius: 4px;
-            }
-            QSlider::add-page:horizontal {
+            }}
+            QSlider::add-page:horizontal {{
                 background: transparent;
                 border-radius: 4px;
-            }
-            QProgressBar {
+            }}
+            QProgressBar {{
                 border: 1px solid black;
                 border-radius: 5px;
                 text-align: center;
                 background-color: transparent;
                 color: black;
-            }
-            QProgressBar::chunk {
+            }}
+            QProgressBar::chunk {{
                 background-color: rgba(0, 0, 0, 0.2);
                 border-radius: 4px;
-            }
-            QLabel {
+            }}
+            QLabel {{
                 color: black;
                 background-color: transparent;
-            }
-            QScrollArea {
+            }}
+            QScrollArea {{
                 border: none;
                 background-color: transparent;
-            }
-            QCheckBox {
+            }}
+            QCheckBox {{
                 background-color: transparent;
                 color: black;
-            }
-            QCheckBox::indicator {
+            }}
+            QCheckBox::indicator {{
                 border: 1px solid black;
-            }
-            QWidget {
+            }}
+            QWidget {{
                 color: black;
-            }
-            QToolTip {
+            }}
+            QToolTip {{
                 color: black;
                 background-color: white;
                 border: 1px solid black;
                 padding: 5px;
                 border-radius: 3px;
-            }
+            }}
         """)
         
         # Set tooltip delay to 0 to show them immediately
@@ -995,9 +1005,6 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     # Set application icon based on platform
-    icon_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Define icon paths based on platform
     if sys.platform.startswith('darwin'):  # macOS
         icon_paths = ["icon.icns", "icon.png"]
     elif sys.platform.startswith('win'):  # Windows
@@ -1008,7 +1015,7 @@ if __name__ == "__main__":
     # Try each icon path
     icon_path = None
     for icon_name in icon_paths:
-        full_path = os.path.join(icon_dir, icon_name)
+        full_path = get_resource_path(icon_name)
         if os.path.exists(full_path):
             icon_path = full_path
             break

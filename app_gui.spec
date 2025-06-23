@@ -60,7 +60,12 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['Carbon'],  # Exclude Carbon framework
+    excludes=[
+        'Carbon', 'QuickTime', 'QTKit', 'Carbon.Framework', 'QuickTime.Framework', 'QTKit.Framework',
+        'win32api', 'win32com', 'win32gui', 'win32ui', 'win32con', 'win32clipboard',
+        'com', 'java', 'org', 'nt', 'ntpath', '_winapi', '_winreg', 'msvcrt',
+        'vms_lib', 'java.lang', 'com.sun'
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -104,4 +109,4 @@ if sys.platform == 'darwin':
             'NSRequiresAquaSystemAppearance': 'False',
             'NSPrincipalClass': 'NSApplication',
         },
-    ) 
+    )
