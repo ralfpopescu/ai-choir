@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QScrollArea, QFormLayout, QDoubleSpinBox,
                              QSpinBox, QCheckBox, QMessageBox, QComboBox, QGroupBox,
-                             QProgressBar)
+                             QProgressBar, QSlider)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QFontDatabase, QFont, QIcon
 
@@ -219,6 +219,9 @@ class AIChoirApp(QMainWindow):
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_file = self.config_dir / "config.json"
         
+        # Store slider ranges for each parameter
+        self.slider_ranges = {}
+        
         self.initUI()
         self.apply_styles()
         
@@ -371,33 +374,16 @@ class AIChoirApp(QMainWindow):
                 widget = QCheckBox()
                 widget.setChecked(value)
             elif isinstance(value, (int, float)):
-                widget = QDoubleSpinBox()
-                min_val, max_val = self.parse_range(self.config_info[key][1])
+                # Create slider with percentage display
+                slider_widget = self.create_slider_widget(key, value)
+                self.config_widgets[key] = slider_widget
                 
-                if min_val is not None and max_val is not None:
-                    widget.setRange(min_val, max_val)
+                # Add to appropriate column
+                if key in left_column_fields:
+                    left_column.addRow(key.replace('_', ' ').title(), slider_widget["widget"])
                 else:
-                    # Default range for values without specific bounds
-                    widget.setRange(-100, 100)
-                
-                widget.setSingleStep(0.001)
-                widget.setDecimals(3)
-                widget.setValue(float(value))
-                widget.setFixedWidth(100)  # Set fixed width for all spin boxes
-                
-                # Connect value changed signal to enforce range
-                def create_value_changed_handler(widget, key):
-                    def handler():
-                        min_val, max_val = self.parse_range(self.config_info[key][1])
-                        if min_val is not None and max_val is not None:
-                            current = widget.value()
-                            if current < min_val:
-                                widget.setValue(min_val)
-                            elif current > max_val:
-                                widget.setValue(max_val)
-                    return handler
-                
-                widget.valueChanged.connect(create_value_changed_handler(widget, key))
+                    right_column.addRow(key.replace('_', ' ').title(), slider_widget["widget"])
+                continue
             else:
                 widget = QLineEdit()
                 widget.setText(str(value))
@@ -577,6 +563,31 @@ class AIChoirApp(QMainWindow):
                 padding: 5px;
                 color: black;
             }
+            QSlider::groove:horizontal {
+                border: 1px solid black;
+                height: 8px;
+                background: transparent;
+                border-radius: 4px;
+                margin: 2px 0;
+            }
+            QSlider::handle:horizontal {
+                background: black;
+                border: 1px solid black;
+                width: 18px;
+                margin: -2px 0;
+                border-radius: 9px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #333;
+            }
+            QSlider::sub-page:horizontal {
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 4px;
+            }
+            QSlider::add-page:horizontal {
+                background: transparent;
+                border-radius: 4px;
+            }
             QProgressBar {
                 border: 1px solid black;
                 border-radius: 5px;
@@ -620,8 +631,11 @@ class AIChoirApp(QMainWindow):
         
     def connect_config_signals(self):
         """Connect signals for all config widgets to save on change"""
-        for widget in self.config_widgets.values():
-            if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+        for key, widget in self.config_widgets.items():
+            if isinstance(widget, dict) and "slider" in widget:
+                # For slider widgets
+                widget["slider"].valueChanged.connect(self.save_config)
+            elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
                 widget.valueChanged.connect(self.save_config)
             elif isinstance(widget, QLineEdit):
                 widget.textChanged.connect(self.save_config)
@@ -683,7 +697,11 @@ class AIChoirApp(QMainWindow):
     def save_config(self):
         try:
             for key, widget in self.config_widgets.items():
-                if isinstance(widget, QLineEdit):
+                if isinstance(widget, dict) and "slider" in widget:
+                    # For slider widgets, convert percentage to actual value
+                    percentage = widget["slider"].value()
+                    self.config[key] = self.slider_to_value(key, percentage)
+                elif isinstance(widget, QLineEdit):
                     # For impulse file, save empty string if it's set to "default"
                     if key == "impulse_file" and widget.text() == "default":
                         self.config[key] = ""
@@ -824,7 +842,12 @@ class AIChoirApp(QMainWindow):
             for key, value in default_config.items():
                 widget = self.config_widgets.get(key)
                 if widget is not None:
-                    if isinstance(widget, QLineEdit):
+                    if isinstance(widget, dict) and "slider" in widget:
+                        # For slider widgets, convert value to percentage
+                        percentage = self.value_to_slider(key, value)
+                        widget["slider"].setValue(percentage)
+                        widget["label"].setText(f"{percentage}%")
+                    elif isinstance(widget, QLineEdit):
                         if key == "impulse_file":
                             widget.setText("default")
                             widget.setStyleSheet("color: gray;")
@@ -846,6 +869,126 @@ class AIChoirApp(QMainWindow):
                 "Configuration Reset",
                 "All settings have been reset to their default values."
             )
+
+    def create_slider_widget(self, key, value):
+        """Create a slider widget with percentage display for a given parameter"""
+        # Get the range for this parameter
+        min_val, max_val = self.get_parameter_range(key)
+        
+        # Store the range for later use
+        self.slider_ranges[key] = (min_val, max_val)
+        
+        # Create the main widget to hold slider and label
+        widget = QWidget()
+        layout = QHBoxLayout()
+        layout.setSpacing(2)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create slider
+        slider = QSlider(Qt.Horizontal)
+        slider.setRange(0, 100)  # Always 0-100 for percentage
+        
+        # Convert the actual value to percentage
+        if max_val != min_val:
+            percentage = int(((value - min_val) / (max_val - min_val)) * 100)
+            percentage = max(0, min(100, percentage))  # Clamp to 0-100
+        else:
+            percentage = 50  # Default to middle if no range
+        
+        slider.setValue(percentage)
+        
+        # Create percentage label
+        label = QLabel(f"{percentage}%")
+        label.setFixedWidth(40)
+        label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        
+        # Add help button
+        help_button = QPushButton("?")
+        help_button.setFixedSize(20, 20)
+        if key in self.config_info:
+            help_button.setToolTip(f"{self.config_info[key][0]}\nRange: {self.config_info[key][1]}")
+        else:
+            help_button.setToolTip("No description available")
+        help_button.setStyleSheet("""
+            QPushButton {
+                border-radius: 10px;
+                font-weight: bold;
+                padding: 0px;
+                margin-left: 5px;
+                background-color: transparent;
+                border: 1px solid black;
+                color: black !important;
+            }
+        """)
+        
+        # Connect slider value change to update label and save config
+        def on_slider_changed():
+            percentage = slider.value()
+            label.setText(f"{percentage}%")
+            self.save_config()
+        
+        slider.valueChanged.connect(on_slider_changed)
+        
+        # Add widgets to layout
+        layout.addWidget(slider)
+        layout.addWidget(label)
+        layout.addWidget(help_button)
+        
+        widget.setLayout(layout)
+        
+        # Store both slider and label for later access
+        return {"slider": slider, "label": label, "widget": widget}
+
+    def get_parameter_range(self, key):
+        """Get the min and max values for a parameter"""
+        if key not in self.config_info:
+            return 0.0, 1.0  # Default range
+        
+        range_str = self.config_info[key][1]
+        
+        # Handle special cases
+        if range_str == "true/false":
+            return 0.0, 1.0
+        if range_str == "-inf to inf":
+            return -50.0, 50.0  # Reasonable range for gain values
+        
+        # Handle percentage case for detune_drift
+        if "%" in range_str:
+            base_detune = self.config.get("base_detune", 0.014)
+            return 0.0, base_detune * 0.25  # 25% of base_detune
+        
+        # Parse standard range formats
+        range_str = range_str.replace(" ", "")
+        if "to" in range_str:
+            min_val, max_val = range_str.split("to")
+        elif "-" in range_str:
+            min_val, max_val = range_str.split("-")
+        else:
+            return 0.0, 1.0  # Default range
+            
+        try:
+            return float(min_val), float(max_val)
+        except ValueError:
+            return 0.0, 1.0  # Default range
+
+    def slider_to_value(self, key, percentage):
+        """Convert slider percentage to actual parameter value"""
+        if key not in self.slider_ranges:
+            return 0.0
+        
+        min_val, max_val = self.slider_ranges[key]
+        return min_val + (percentage / 100.0) * (max_val - min_val)
+
+    def value_to_slider(self, key, value):
+        """Convert actual parameter value to slider percentage"""
+        if key not in self.slider_ranges:
+            return 50
+        
+        min_val, max_val = self.slider_ranges[key]
+        if max_val != min_val:
+            percentage = ((value - min_val) / (max_val - min_val)) * 100
+            return max(0, min(100, int(percentage)))
+        return 50
 
 
 if __name__ == "__main__":

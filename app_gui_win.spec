@@ -24,43 +24,33 @@ asset_files = [
     ('font.ttf', '.'),
 ]
 
+# Windows-specific DLLs
+windows_dlls = [
+    ('C:\\Windows\\System32\\vcruntime140.dll', '.'),
+    ('C:\\Windows\\System32\\msvcp140.dll', '.'),
+    ('C:\\Windows\\System32\\vcruntime140_1.dll', '.'),
+]
+
 a = Analysis(
     ['app_gui.py'],
     pathex=[venv_site_packages],  # Add virtual environment site-packages to path
-    binaries=[],
-    datas=[
-        ('models', 'models'),
-        ('config.json', '.'),
-        ('gen.py', '.'),
-        ('gen_process.py', '.'),
-        ('gen_curve.py', '.'),
-        ('gen_combine.py', '.'),
-        ('gen_convolve.py', '.'),
-        ('util.py', '.'),
-        ('font.ttf', '.'),
-        ('bg.png', '.'),
-        ('bg-button.png', '.'),
-        ('icon.png', '.'),
-        ('icon.icns', '.'),
-        ('icon.ico', '.'),
-    ],
+    binaries=windows_dlls,  # Include Windows DLLs
+    datas=model_files + asset_files,  # Include all model and asset files
     hiddenimports=[
-        'PySide6.QtCore',
-        'PySide6.QtGui',
-        'PySide6.QtWidgets',
-        'PySide6.support',
-        'PySide6.support.signature',
-        'PySide6.support.signature.typing',
-        'PySide6.support.signature.lib',
-        'PySide6.support.signature.mapping',
-        'PySide6.support.signature.qtcore',
-        'PySide6.support.signature.qtgui',
-        'PySide6.support.signature.qtwidgets',
+        'torch',
+        'torchaudio',
+        'numpy',
+        'librosa',
+        'soundfile',
+        'scipy',
+        'sklearn',
+        'PySide6',
+        'appdirs',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['Carbon'],  # Exclude Carbon framework
+    excludes=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -83,25 +73,11 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # Set to False for GUI application
+    console=False,
     disable_windowed_traceback=False,
-    argv_emulation=True,
-    target_arch=None,
+    argv_emulation=False,  # Disable argv emulation for Windows
+    target_arch='x86_64',  # Target 64-bit Windows
     codesign_identity=None,
     entitlements_file=None,
-)
-
-# For macOS, create an app bundle
-if sys.platform == 'darwin':
-    app = BUNDLE(
-        exe,
-        name='AI_Choir_Generator.app',
-        icon='icon.icns',
-        bundle_identifier='com.offwhite.aichoir',
-        info_plist={
-            'NSHighResolutionCapable': 'True',
-            'LSBackgroundOnly': 'False',
-            'NSRequiresAquaSystemAppearance': 'False',
-            'NSPrincipalClass': 'NSApplication',
-        },
-    ) 
+    icon='icon.ico',  # Use .ico for Windows
+) 

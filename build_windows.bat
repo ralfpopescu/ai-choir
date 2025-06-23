@@ -1,21 +1,14 @@
 @echo off
-
-:: Create virtual environment
+echo Setting up Python virtual environment...
 python -m venv venv
 call venv\Scripts\activate.bat
 
-:: Install requirements
+echo Installing dependencies...
 pip install -r requirements.txt
-pip install -r requirements_gui.txt
+pip install pyinstaller
 
-:: Build the application
-pyinstaller app_gui.spec
+echo Building executable...
+pyinstaller app_gui_win.spec
 
-:: Deactivate virtual environment
-call venv\Scripts\deactivate.bat
-
-:: Clean up virtual environment
-rmdir /s /q venv
-
-echo Build complete! Check the dist folder for the executable.
+echo Build complete! The executable is in the dist folder.
 pause 
