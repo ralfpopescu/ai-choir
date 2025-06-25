@@ -38,6 +38,7 @@ pyinstaller \
     --add-data "icon.ico:." \
     --onedir \
     --windowed \
+    --icon "icon.icns" \
     --name "ai_choir" \
     app_gui.py
 
