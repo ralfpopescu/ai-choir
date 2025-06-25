@@ -3,7 +3,7 @@
 # Build script for AI Choir Generator - macOS
 # This script creates a working macOS app bundle using PyInstaller
 
-echo "Building AI Choir Generator for macOS..."
+echo "Building ai_choir for macOS..."
 
 # Ensure we're in the right directory
 cd "$(dirname "$0")"
@@ -38,26 +38,26 @@ pyinstaller \
     --add-data "icon.ico:." \
     --onedir \
     --windowed \
-    --name "AI_Choir_Generator" \
+    --name "ai_choir" \
     app_gui.py
 
-echo "Build complete! App bundle is available at: dist/AI_Choir_Generator.app"
+echo "Build complete! App bundle is available at: dist/ai_choir.app"
 
 # Optional: Create DMG if create-dmg is available
 if command -v create-dmg &> /dev/null; then
     echo "Creating DMG..."
     create-dmg \
-        --volname "AI Choir Generator" \
+        --volname "ai_choir" \
         --volicon "icon.icns" \
         --window-pos 200 120 \
         --window-size 800 400 \
         --icon-size 100 \
-        --icon "AI_Choir_Generator.app" 200 190 \
-        --hide-extension "AI_Choir_Generator.app" \
+        --icon "ai_choir.app" 200 190 \
+        --hide-extension "ai_choir.app" \
         --app-drop-link 600 185 \
-        "AI_Choir_Generator.dmg" \
-        "dist/AI_Choir_Generator.app"
-    echo "DMG created: AI_Choir_Generator.dmg"
+        "ai_choir.dmg" \
+        "dist/ai_choir.app"
+    echo "DMG created: ai_choir.dmg"
 else
     echo "create-dmg not found. Install with: brew install create-dmg"
 fi 

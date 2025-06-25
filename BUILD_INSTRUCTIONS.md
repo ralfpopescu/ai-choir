@@ -1,4 +1,4 @@
-# AI Choir Generator - Build Instructions
+# ai_choir - Build Instructions
 
 ## Prerequisites
 
@@ -65,7 +65,7 @@ pyinstaller \
     --add-data "icon.ico:." \
     --onedir \
     --windowed \
-    --name "AI_Choir_Generator" \
+    --name "ai_choir" \
     app_gui.py
 ```
 
@@ -81,8 +81,8 @@ The app was originally failing due to Carbon framework dependencies. This was re
 The app uses a `get_resource_path()` function to properly load resources (images, fonts, etc.) both in development and when packaged.
 
 ### Output
-- **App Bundle**: `dist/AI_Choir_Generator.app`
-- **DMG File**: `AI_Choir_Generator.dmg` (if create-dmg is installed)
+- **App Bundle**: `dist/ai_choir.app`
+- **DMG File**: `ai_choir.dmg` (if create-dmg is installed)
 
 ## Troubleshooting
 
@@ -107,7 +107,7 @@ The app bundle is large (~3.5GB) because it includes:
 
 ## Distribution
 
-The final DMG file (`AI_Choir_Generator.dmg`) can be distributed to users. They can:
+The final DMG file (`ai_choir.dmg`) can be distributed to users. They can:
 1. Double-click to mount the DMG
 2. Drag the app to their Applications folder
 3. Run the app normally

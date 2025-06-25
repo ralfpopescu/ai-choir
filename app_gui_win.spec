@@ -66,7 +66,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='AI_Choir_Generator',
+    name='ai_choir',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

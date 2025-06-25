@@ -81,7 +81,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='AI_Choir_Generator',
+    name='ai_choir',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -100,13 +100,23 @@ exe = EXE(
 if sys.platform == 'darwin':
     app = BUNDLE(
         exe,
-        name='AI_Choir_Generator.app',
+        name='ai_choir.app',
         icon='icon.icns',
         bundle_identifier='com.offwhite.aichoir',
         info_plist={
+            'CFBundleName': 'ai_choir',
+            'CFBundleDisplayName': 'ai_choir',
+            'CFBundleExecutable': 'ai_choir',
+            'CFBundleIconFile': 'icon.icns',
+            'CFBundleIdentifier': 'com.offwhite.aichoir',
+            'CFBundleInfoDictionaryVersion': '6.0',
+            'CFBundlePackageType': 'APPL',
+            'CFBundleShortVersionString': '1.0.0',
+            'CFBundleVersion': '1.0.0',
             'NSHighResolutionCapable': 'True',
             'LSBackgroundOnly': 'False',
             'NSRequiresAquaSystemAppearance': 'False',
             'NSPrincipalClass': 'NSApplication',
+            'LSMinimumSystemVersion': '10.15',
         },
     )

@@ -239,7 +239,7 @@ class AIChoirApp(QMainWindow):
         self.connect_config_signals()
         
     def initUI(self):
-        self.setWindowTitle("AI Choir Generator")
+        self.setWindowTitle("ai_choir")
         self.setMinimumSize(1000, 600)
         
         # Main widget and layout
@@ -249,7 +249,7 @@ class AIChoirApp(QMainWindow):
         
         # Title section
         title_layout = QHBoxLayout()
-        title_label = QLabel("AI Choir")
+        title_label = QLabel("ai_choir")
         title_label.setStyleSheet("""
             QLabel {
                 font-size: 24px;
