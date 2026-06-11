@@ -1,9 +1,8 @@
 import sys
 import os
 import json
-import subprocess
 import shutil
-import re
+import tempfile
 from pathlib import Path
 import appdirs
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -28,178 +27,131 @@ class GenerationWorker(QThread):
     finished = Signal(bool, str)
     progress = Signal(int)
     status_update = Signal(str)
-    
-    def __init__(self, input_file, output_dir, impulse_file):
+
+    def __init__(self, input_file, output_dir, impulse_file, config_file):
         super().__init__()
         self.input_file = input_file
         self.output_dir = output_dir
         self.impulse_file = impulse_file
-        self.process = None
-        
+        self.config_file = config_file
+        self.temp_dir = None
+
     def run(self):
+        original_cwd = os.getcwd()
         try:
-            # Get the number of models for progress calculation
-            models = self.get_model_count()
-            total_steps = models + 4  # models + processing + curve + combine + convolve
-            current_step = 0
-            voice_count = 0
-            segment_count = 0
-            
             self.status_update.emit("Setting up environment...")
-            self.progress.emit(1)  # Start with a small progress indication
-            
-            # Create arrays to store the output for debugging
-            stdout_data = []
-            stderr_data = []
-            
-            # If an impulse file is specified, copy it to the working directory
+            self.progress.emit(1)
+
+            # Create a temporary directory for the generation process
+            self.temp_dir = tempfile.mkdtemp(prefix="ai_choir_")
+
+            # Copy necessary data to the temporary directory
+            resource_base = get_resource_path("")
+
+            # Copy the config file to the temporary directory
+            shutil.copy2(self.config_file, os.path.join(self.temp_dir, 'config.json'))
+
+            # Copy the so-vits-svc directory if it exists
+            sovits_src = os.path.join(resource_base, 'so-vits-svc')
+            if os.path.exists(sovits_src):
+                shutil.copytree(sovits_src, os.path.join(self.temp_dir, 'so-vits-svc'))
+
+            # Copy models directory if it exists
+            models_src = os.path.join(resource_base, 'models')
+            if os.path.exists(models_src):
+                shutil.copytree(models_src, os.path.join(self.temp_dir, 'models'))
+
+            # Copy impulse.wav (default or user-specified)
             if self.impulse_file and os.path.exists(self.impulse_file):
-                shutil.copy2(self.impulse_file, 'impulse.wav')
-            
-            # Run the generation script
-            self.process = subprocess.Popen(
-                [sys.executable, 'gen.py', self.input_file],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1
-            )
-            
-            # Polling approach to read from both stdout and stderr
-            import select
-            
-            # Initial progress updates
-            self.progress.emit(5)
-            
-            # Use polling to read from the process outputs
-            while self.process.poll() is None:
-                # Use select to wait until the process has output to read, but with a timeout
-                # so we don't block forever
-                ready_to_read, _, _ = select.select(
-                    [self.process.stdout, self.process.stderr],
-                    [], [], 0.1
-                )
-                
-                for stream in ready_to_read:
-                    line = stream.readline()
-                    if not line:
-                        continue
-                        
-                    # Store the output for debugging
-                    if stream is self.process.stdout:
-                        stdout_data.append(line)
-                        print(f"STDOUT: {line.strip()}")
-                        
-                        # Parse the output for progress updates based on actual log patterns
-                        if "File copied and renamed to:" in line:
-                            self.status_update.emit("Preparing input file...")
-                            self.progress.emit(10)
-                            
-                        # Model availability checks
-                        elif "model available" in line:
-                            model_name = line.split("/")[2] if "/" in line else "Model"
-                            self.status_update.emit(f"Found model: {model_name}")
-                            self.progress.emit(15)
-                            
-                        # Loading models
-                        elif line.strip() == "load":
-                            voice_count += 1
-                            progress = min(60, 15 + int((voice_count / models) * 45))
-                            self.status_update.emit(f"Rendering voice model {voice_count}/{models}...")
-                            self.progress.emit(progress)
-                            
-                        # Processing voice segments
-                        elif "vits use time" in line:
-                            segment_count += 1
-                            self.status_update.emit(f"Processing voice {voice_count}/{models}, segment {segment_count}...")
-                            # Small increment for each segment
-                            self.progress.emit(min(65, 15 + int((voice_count / models) * 50)))
-                            
-                        # Cleanup phase
-                        elif "Cleaned up:" in line:
-                            self.status_update.emit("Cleaning up temporary files...")
-                            self.progress.emit(90)
-                            
-                        # Various processing steps
-                        elif "gen_process.py" in line:
-                            self.status_update.emit("Processing individual voices...")
-                            self.progress.emit(75)
-                        elif "gen_curve.py" in line:
-                            self.status_update.emit("Applying EQ curves...")
-                            self.progress.emit(80)
-                        elif "gen_combine.py" in line:
-                            self.status_update.emit("Combining voices into choir...")
-                            self.progress.emit(85)
-                        elif "gen_convolve.py" in line:
-                            self.status_update.emit("Applying convolution reverb...")
-                            self.progress.emit(95)
-                            
-                        # Completion
-                        elif "Done! See result in output folder." in line:
-                            self.status_update.emit("Generation completed!")
-                            self.progress.emit(100)
-                    else:
-                        stderr_data.append(line)
-                        print(f"STDERR: {line.strip()}")
-            
-            # Wait for process to complete and get return code
-            return_code = self.process.wait()
-            
-            # Read any remaining output
-            remaining_stdout = self.process.stdout.read()
-            if remaining_stdout:
-                stdout_data.append(remaining_stdout)
-                print(f"Remaining STDOUT: {remaining_stdout}")
-                
-                # Check if the completion message is in the remaining output
-                if "Done! See result in output folder." in remaining_stdout:
-                    self.status_update.emit("Generation completed!")
-                    self.progress.emit(100)
-                
-            remaining_stderr = self.process.stderr.read()
-            if remaining_stderr:
-                stderr_data.append(remaining_stderr)
-                print(f"Remaining STDERR: {remaining_stderr}")
-                
-            # Check if the process was successful
-            if return_code == 0:
-                # If a custom output directory was specified, move the files there
-                if self.output_dir != "./output":
-                    os.makedirs(self.output_dir, exist_ok=True)
-                    for filename in os.listdir("./output"):
-                        source_file = os.path.join("./output", filename)
-                        destination_file = os.path.join(self.output_dir, filename)
-                        if os.path.isfile(source_file):
-                            shutil.copy2(source_file, destination_file)
-                
-                self.progress.emit(100)
-                self.finished.emit(True, "Generation completed successfully!")
+                shutil.copy2(self.impulse_file, os.path.join(self.temp_dir, 'impulse.wav'))
             else:
-                error_msg = f"Error during generation. Return code: {return_code}"
-                if stderr_data:
-                    error_details = "\n".join(stderr_data)
-                    error_msg += f"\nDetails: {error_details}"
-                self.finished.emit(False, error_msg)
+                default_impulse = os.path.join(resource_base, 'impulse.wav')
+                if os.path.exists(default_impulse):
+                    shutil.copy2(default_impulse, os.path.join(self.temp_dir, 'impulse.wav'))
+
+            # Create output directory in temp dir
+            os.makedirs(os.path.join(self.temp_dir, 'output'), exist_ok=True)
+
+            # Change to the temporary directory so relative paths in scripts work
+            os.chdir(self.temp_dir)
+
+            # Add temp dir to Python path so gen modules can be imported
+            if resource_base not in sys.path:
+                sys.path.insert(0, resource_base)
+
+            self.progress.emit(5)
+
+            # Track progress via callback
+            models_count = self.get_model_count()
+            voice_count = [0]  # mutable for closure
+
+            def on_status(stage, message):
+                if stage == "setup":
+                    self.status_update.emit("Setting up...")
+                    self.progress.emit(10)
+                elif stage == "inference":
+                    if "Processing voice model" in message:
+                        voice_count[0] += 1
+                        progress = min(65, 15 + int((voice_count[0] / max(1, models_count)) * 50))
+                        self.status_update.emit(f"Rendering voice {voice_count[0]}/{models_count}...")
+                        self.progress.emit(progress)
+                elif stage == "process":
+                    self.status_update.emit("Processing individual voices...")
+                    self.progress.emit(70)
+                elif stage == "curve":
+                    self.status_update.emit("Applying EQ curves...")
+                    self.progress.emit(80)
+                elif stage == "combine":
+                    self.status_update.emit("Combining voices into choir...")
+                    self.progress.emit(85)
+                elif stage == "convolve":
+                    self.status_update.emit("Applying convolution reverb...")
+                    self.progress.emit(92)
+                elif stage == "done":
+                    self.status_update.emit("Generation completed!")
+                    self.progress.emit(98)
+
+            # Run the generation pipeline directly (no subprocess)
+            import gen
+            gen.run_generation(self.input_file, status_callback=on_status)
+
+            # Copy output files to the specified output directory
+            os.makedirs(self.output_dir, exist_ok=True)
+            output_dir_path = os.path.join(self.temp_dir, "output")
+            if os.path.exists(output_dir_path):
+                for filename in os.listdir(output_dir_path):
+                    source_file = os.path.join(output_dir_path, filename)
+                    destination_file = os.path.join(self.output_dir, filename)
+                    if os.path.isfile(source_file):
+                        shutil.copy2(source_file, destination_file)
+
+            self.progress.emit(100)
+            self.finished.emit(True, "Generation completed successfully!")
+
         except Exception as e:
             import traceback
             traceback_str = traceback.format_exc()
             self.finished.emit(False, f"Error during generation: {str(e)}\n{traceback_str}")
-            
+        finally:
+            # Always restore the original working directory and cleanup temp dir
+            os.chdir(original_cwd)
+            if self.temp_dir and os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
+
     def get_model_count(self):
         """Get the number of models to be processed"""
         try:
-            # Try to load the model count from util.py's get_models function
-            models_path = "./models"
+            models_path = get_resource_path("models")
             if os.path.exists(models_path):
                 count = 0
                 for folder_name in os.listdir(models_path):
                     folder_path = os.path.join(models_path, folder_name)
                     if os.path.isdir(folder_path) and os.path.isfile(os.path.join(folder_path, 'config.json')):
                         count += 1
-                return max(1, count)  # Ensure at least 1 model
-            return 7  # Default fallback if can't determine
+                return max(1, count)
+            return 7
         except Exception:
-            return 7  # Default estimate
+            return 7
 
 
 class AIChoirApp(QMainWindow):
@@ -786,19 +738,12 @@ class AIChoirApp(QMainWindow):
         # Save configuration
         self.save_config()
         
-        # Copy config file to current working directory
-        try:
-            shutil.copy2(self.config_file, 'config.json')
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to copy configuration file: {str(e)}")
-            return
-        
         # Reset and show progress UI
         self.progress_bar.setValue(0)
         self.status_label.setText("Starting generation...")
         
         # Create and start the worker thread
-        self.worker = GenerationWorker(input_file, output_dir, impulse_file)
+        self.worker = GenerationWorker(input_file, output_dir, impulse_file, self.config_file)
         self.worker.progress.connect(self.update_progress)
         self.worker.status_update.connect(self.update_status)
         self.worker.finished.connect(self.generation_finished)

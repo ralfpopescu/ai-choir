@@ -1,31 +1,37 @@
 #!/bin/bash
 
-# Create virtual environment
-python -m venv venv
+# Build script for AI Choir Generator - macOS
+# Sets up a virtual environment, installs dependencies, and builds the app
+
+set -e
+
+echo "Building ai_choir for macOS..."
+
+cd "$(dirname "$0")"
+
+# Create and activate virtual environment
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv venv
+fi
 source venv/bin/activate
 
 # Install requirements
+echo "Installing dependencies..."
 pip install -r requirements.txt
 pip install -r requirements_gui.txt
 
+# Clean previous build artifacts
+echo "Cleaning previous builds..."
+rm -rf build/ dist/
+
 # Build the application
-pyinstaller app_gui.spec
+echo "Running PyInstaller..."
+pyinstaller ai_choir.spec
 
 # Deactivate virtual environment
 deactivate
 
-# Create DMG
-create-dmg \
-    --volname "AI Choir Generator" \
-    --volicon "icon.icns" \
-    --window-pos 200 120 \
-    --window-size 800 400 \
-    --icon-size 100 \
-    --icon "AI_Choir_Generator.app" 200 190 \
-    --hide-extension "AI_Choir_Generator.app" \
-    --app-drop-link 600 185 \
-    "AI_Choir_Generator.dmg" \
-    "dist/AI_Choir_Generator.app"
-
-# Clean up virtual environment
-rm -rf venv 
+echo ""
+echo "Build complete!"
+echo "App bundle: dist/ai_choir.app"

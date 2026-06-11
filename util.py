@@ -16,7 +16,11 @@ default_models = [
 
 def get_models():
     result = []
-    base_path = "./models"
+    # Use absolute path to models directory in current working directory (temp dir)
+    base_path = os.path.abspath("./models")
+    if not os.path.exists(base_path):
+        return result  # Return empty list if models directory doesn't exist
+    
     # Iterate over each folder in the base directory
     for folder_name in os.listdir(base_path):
         folder_path = os.path.join(base_path, folder_name)
@@ -34,7 +38,11 @@ def get_models():
 
 def get_speakers():
     result = []
-    base_path = "./models"
+    # Use absolute path to models directory in current working directory (temp dir)
+    base_path = os.path.abspath("./models")
+    if not os.path.exists(base_path):
+        return result  # Return empty list if models directory doesn't exist
+    
     # Iterate over each folder in the base directory
     for folder_name in os.listdir(base_path):
         folder_path = os.path.join(base_path, folder_name)
@@ -50,12 +58,15 @@ def get_speakers():
     return result
 
 def get_config():
-    with open('config.json', 'r') as file:
+    # Use absolute path to config.json in current working directory (temp dir)
+    config_path = os.path.abspath('config.json')
+    with open(config_path, 'r') as file:
         data = json.load(file)
     return data
 
 def check_config():
-    file_path = 'config.json'
+    # Use absolute path to config.json in current working directory (temp dir)
+    file_path = os.path.abspath('config.json')
     required_fields = [
         "cleanup",
         "convolution_reverb_dry_wet",

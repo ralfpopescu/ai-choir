@@ -5,79 +5,120 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-# Get the site-packages directory from the virtual environment
-venv_site_packages = os.path.join('venv', 'lib', 'python{}.{}'.format(sys.version_info.major, sys.version_info.minor), 'site-packages')
-
-# Collect all model files
-model_files = []
-for root, dirs, files in os.walk('models'):
-    for file in files:
-        if file.endswith(('.pth', '.json')):
-            model_files.append((os.path.join(root, file), root))
-
-# Collect all asset files
-asset_files = [
-    ('icon.ico', '.'),
-    ('icon.png', '.'),
-    ('bg.png', '.'),
-    ('bg-button.png', '.'),
-    ('font.ttf', '.'),
-]
-
-# Windows-specific DLLs
-windows_dlls = [
-    ('C:\\Windows\\System32\\vcruntime140.dll', '.'),
-    ('C:\\Windows\\System32\\msvcp140.dll', '.'),
-    ('C:\\Windows\\System32\\vcruntime140_1.dll', '.'),
-]
-
 a = Analysis(
     ['app_gui.py'],
-    pathex=[venv_site_packages],  # Add virtual environment site-packages to path
-    binaries=windows_dlls,  # Include Windows DLLs
-    datas=model_files + asset_files,  # Include all model and asset files
+    pathex=[],
+    binaries=[],
+    datas=[
+        ('models', 'models'),
+        ('config.json', '.'),
+        ('impulse.wav', '.'),
+        ('gen.py', '.'),
+        ('gen_process.py', '.'),
+        ('gen_curve.py', '.'),
+        ('gen_combine.py', '.'),
+        ('gen_convolve.py', '.'),
+        ('util.py', '.'),
+        ('cleanup.py', '.'),
+        ('so-vits-svc', 'so-vits-svc'),
+        ('font.ttf', '.'),
+        ('bg.png', '.'),
+        ('bg-button.png', '.'),
+        ('icon.png', '.'),
+        ('icon.ico', '.'),
+    ] + collect_data_files('torch') + collect_data_files('torchaudio') + collect_data_files('librosa') + collect_data_files('transformers'),
     hiddenimports=[
+        # PySide6 / Qt
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtWidgets',
+        # PyTorch
         'torch',
+        'torch.nn',
+        'torch.nn.functional',
+        'torch.utils',
+        'torch.utils.data',
         'torchaudio',
-        'numpy',
+        'torchaudio.transforms',
+        'torchaudio.functional',
+        # Audio processing
+        'pydub',
+        'pydub.effects',
         'librosa',
+        'librosa.core',
+        'librosa.util',
         'soundfile',
         'scipy',
+        'scipy.signal',
+        'scipy.io',
+        'scipy.io.wavfile',
+        # ML / AI
+        'fairseq',
+        'transformers',
+        'faiss',
         'sklearn',
-        'PySide6',
+        'sklearn.cluster',
+        'numpy',
+        'numba',
+        # Voice processing
+        'pyworld',
+        'torchcrepe',
+        'parselmouth',
+        # Utilities
         'appdirs',
-    ],
+        'json',
+        'importlib',
+        'PIL',
+        'resampy',
+        'einops',
+        'local_attention',
+        # App modules
+        'gen',
+        'gen_process',
+        'gen_curve',
+        'gen_combine',
+        'gen_convolve',
+        'cleanup',
+        'util',
+    ] + collect_submodules('torch') + collect_submodules('torchaudio') + collect_submodules('fairseq') + collect_submodules('PySide6'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
+    excludes=[
+        'tkinter', '_tkinter',
+        'gradio', 'fastapi', 'uvicorn', 'flask',
+    ],
     noarchive=False,
+    optimize=0,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='ai_choir',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=False,  # Disable argv emulation for Windows
-    target_arch='x86_64',  # Target 64-bit Windows
+    argv_emulation=False,
+    target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',  # Use .ico for Windows
-) 
+    icon='icon.ico',
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='ai_choir',
+)

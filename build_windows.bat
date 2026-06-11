@@ -1,14 +1,23 @@
 @echo off
+echo Building ai_choir for Windows...
+
 echo Setting up Python virtual environment...
-python -m venv venv
+if not exist venv (
+    python -m venv venv
+)
 call venv\Scripts\activate.bat
 
 echo Installing dependencies...
 pip install -r requirements.txt
 pip install pyinstaller
 
-echo Building executable...
+echo Cleaning previous builds...
+rmdir /s /q build 2>nul
+rmdir /s /q dist 2>nul
+
+echo Running PyInstaller...
 pyinstaller app_gui_win.spec
 
-echo Build complete! The executable is in the dist folder.
-pause 
+echo.
+echo Build complete! The executable is in dist\ai_choir\ai_choir.exe
+pause
