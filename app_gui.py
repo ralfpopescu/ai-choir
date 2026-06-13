@@ -5,6 +5,10 @@ import shutil
 import tempfile
 from pathlib import Path
 import appdirs
+
+# Keep sklearn/joblib sequential: loky worker processes re-exec the frozen
+# binary (ghost GUI instances) and inference gains nothing from them.
+os.environ.setdefault("JOBLIB_MULTIPROCESSING", "0")
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QScrollArea, QFormLayout, QDoubleSpinBox,
@@ -12,6 +16,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QProgressBar, QSlider)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QFontDatabase, QFont, QIcon
+
+import model_manager
 
 def get_resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -30,9 +36,12 @@ class GenerationWorker(QThread):
 
     def __init__(self, input_file, output_dir, impulse_file, config_file):
         super().__init__()
-        self.input_file = input_file
-        self.output_dir = output_dir
-        self.impulse_file = impulse_file
+        # Resolve everything to absolute paths now: run() chdirs into a temp
+        # dir, where a relative path like "./output" would silently alias the
+        # temp dir's own output folder (self-copy error, render lost).
+        self.input_file = os.path.abspath(input_file)
+        self.output_dir = os.path.abspath(os.path.expanduser(output_dir))
+        self.impulse_file = os.path.abspath(impulse_file) if impulse_file else impulse_file
         self.config_file = config_file
         self.temp_dir = None
 
@@ -41,6 +50,10 @@ class GenerationWorker(QThread):
         try:
             self.status_update.emit("Setting up environment...")
             self.progress.emit(1)
+
+            # Create the output directory up front so a bad path fails here,
+            # not after minutes of rendering.
+            os.makedirs(self.output_dir, exist_ok=True)
 
             # Create a temporary directory for the generation process
             self.temp_dir = tempfile.mkdtemp(prefix="ai_choir_")
@@ -51,15 +64,20 @@ class GenerationWorker(QThread):
             # Copy the config file to the temporary directory
             shutil.copy2(self.config_file, os.path.join(self.temp_dir, 'config.json'))
 
-            # Copy the so-vits-svc directory if it exists
+            # Copy the so-vits-svc code (small), excluding the pretrain checkpoint
             sovits_src = os.path.join(resource_base, 'so-vits-svc')
-            if os.path.exists(sovits_src):
-                shutil.copytree(sovits_src, os.path.join(self.temp_dir, 'so-vits-svc'))
+            sovits_dst = os.path.join(self.temp_dir, 'so-vits-svc')
+            shutil.copytree(sovits_src, sovits_dst, ignore=shutil.ignore_patterns('pretrain'))
 
-            # Copy models directory if it exists
-            models_src = os.path.join(resource_base, 'models')
-            if os.path.exists(models_src):
-                shutil.copytree(models_src, os.path.join(self.temp_dir, 'models'))
+            # Link the hubert checkpoint into the copied tree
+            pretrain_dir = os.path.join(sovits_dst, 'so-vits-svc-4.1-Stable', 'pretrain')
+            os.makedirs(pretrain_dir, exist_ok=True)
+            os.symlink(str(model_manager.get_hubert_path()),
+                       os.path.join(pretrain_dir, model_manager.HUBERT_FILENAME))
+
+            # Link the downloaded voice models (multi-GB; never copy)
+            os.symlink(str(model_manager.get_models_dir()),
+                       os.path.join(self.temp_dir, 'models'))
 
             # Copy impulse.wav (default or user-specified)
             if self.impulse_file and os.path.exists(self.impulse_file):
@@ -116,7 +134,6 @@ class GenerationWorker(QThread):
             gen.run_generation(self.input_file, status_callback=on_status)
 
             # Copy output files to the specified output directory
-            os.makedirs(self.output_dir, exist_ok=True)
             output_dir_path = os.path.join(self.temp_dir, "output")
             if os.path.exists(output_dir_path):
                 for filename in os.listdir(output_dir_path):
@@ -141,15 +158,7 @@ class GenerationWorker(QThread):
     def get_model_count(self):
         """Get the number of models to be processed"""
         try:
-            models_path = get_resource_path("models")
-            if os.path.exists(models_path):
-                count = 0
-                for folder_name in os.listdir(models_path):
-                    folder_path = os.path.join(models_path, folder_name)
-                    if os.path.isdir(folder_path) and os.path.isfile(os.path.join(folder_path, 'config.json')):
-                        count += 1
-                return max(1, count)
-            return 7
+            return max(1, len(model_manager.installed_models()))
         except Exception:
             return 7
 
@@ -189,7 +198,24 @@ class AIChoirApp(QMainWindow):
         
         # Connect config change signals
         self.connect_config_signals()
-        
+
+        # Models ship inside the app; this only fails on a broken bundle or a
+        # source checkout that hasn't run download_models.py yet.
+        self.check_models()
+
+    def check_models(self):
+        missing = model_manager.missing_components()
+        if not missing:
+            return
+        self.generate_button.setEnabled(False)
+        self.status_label.setText("Voice models missing")
+        QMessageBox.critical(
+            self, "Error",
+            "Missing components:\n- " + "\n- ".join(missing) +
+            "\n\nThis app bundle appears to be incomplete. Please re-download "
+            "the app. (If running from source, run download_models.py first.)"
+        )
+
     def initUI(self):
         self.setWindowTitle("ai_choir")
         self.setMinimumSize(1000, 600)
@@ -220,6 +246,18 @@ class AIChoirApp(QMainWindow):
         title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
         title_layout.addStretch()
+        url_label = QLabel(
+            '<a href="https://www.offwhite.studio" '
+            'style="color: black; text-decoration: none;">www.offwhite.studio</a>'
+        )
+        url_label.setOpenExternalLinks(True)
+        url_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: black;
+            }
+        """)
+        title_layout.addWidget(url_label)
         main_layout.addLayout(title_layout)
         
         # Input file section
@@ -243,7 +281,7 @@ class AIChoirApp(QMainWindow):
         
         self.output_path = QLineEdit()
         self.output_path.setPlaceholderText("Select an output directory")
-        self.output_path.setText("./output")
+        self.output_path.setText(os.path.join(os.path.expanduser("~"), "Music", "ai_choir"))
         
         output_browse_button = QPushButton("Browse")
         output_browse_button.clicked.connect(self.browse_output_dir)
@@ -315,7 +353,7 @@ class AIChoirApp(QMainWindow):
                         margin-left: 5px;
                         background-color: transparent;
                         border: 1px solid black;
-                        color: black !important;
+                        color: #f3f5e3;
                     }
                 """)
                 
@@ -377,7 +415,7 @@ class AIChoirApp(QMainWindow):
                     margin-left: 5px;
                     background-color: transparent;
                     border: 1px solid black;
-                    color: black !important;
+                    color: #f3f5e3;
                 }
             """)
             input_layout.addWidget(help_button)
@@ -449,12 +487,12 @@ class AIChoirApp(QMainWindow):
         progress_group.setLayout(progress_layout)
         
         # Generate button
-        generate_button = QPushButton("Generate Choir")
-        generate_button.setMinimumHeight(40)
-        generate_button.clicked.connect(self.generate_choir)
-        
+        self.generate_button = QPushButton("Generate Choir")
+        self.generate_button.setMinimumHeight(40)
+        self.generate_button.clicked.connect(self.generate_choir)
+
         main_layout.addWidget(progress_group)
-        main_layout.addWidget(generate_button)
+        main_layout.addWidget(self.generate_button)
         
         self.setCentralWidget(main_widget)
         
@@ -490,6 +528,9 @@ class AIChoirApp(QMainWindow):
             print(f"Error loading font: {str(e)}")
         
         self.setStyleSheet(f"""
+            QWidget {{
+                color: black;
+            }}
             QMainWindow {{
                 background-image: url({get_resource_path("bg.png")});
                 background-position: center;
@@ -511,7 +552,7 @@ class AIChoirApp(QMainWindow):
                 background-image: url({get_resource_path("bg-button.png")});
                 background-position: center;
                 background-repeat: no-repeat;
-                color: white !important;
+                color: #f3f5e3;
                 border: none;
                 padding: 8px 16px;
             }}
@@ -575,9 +616,6 @@ class AIChoirApp(QMainWindow):
             }}
             QCheckBox::indicator {{
                 border: 1px solid black;
-            }}
-            QWidget {{
-                color: black;
             }}
             QToolTip {{
                 color: black;
@@ -872,7 +910,7 @@ class AIChoirApp(QMainWindow):
                 margin-left: 5px;
                 background-color: transparent;
                 border: 1px solid black;
-                color: black !important;
+                color: #f3f5e3;
             }
         """)
         
@@ -947,8 +985,29 @@ class AIChoirApp(QMainWindow):
 
 
 if __name__ == "__main__":
+    # Multiprocessing children re-exec this binary when frozen; without this,
+    # each spawn boots a second copy of the GUI instead of running its task.
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     app = QApplication(sys.argv)
-    
+
+    # Headless build verification: AI_CHOIR_SELFTEST=<input.wav> runs one
+    # generation synchronously and exits non-zero on failure.
+    if os.environ.get('AI_CHOIR_SELFTEST'):
+        results = {}
+        worker = GenerationWorker(
+            os.environ['AI_CHOIR_SELFTEST'],
+            os.path.join(tempfile.gettempdir(), 'ai_choir_selftest_output'),
+            "",
+            get_resource_path('config.json'),
+        )
+        worker.finished.connect(lambda ok, msg: results.update(ok=ok, msg=msg))
+        worker.run()
+        print("SELFTEST result:", results.get('ok'), results.get('msg', ''))
+        sys.exit(0 if results.get('ok') else 1)
+
+
     # Set application icon based on platform
     if sys.platform.startswith('darwin'):  # macOS
         icon_paths = ["icon.icns", "icon.png"]

@@ -11,10 +11,10 @@ def main():
         print(f"Skipping cleanup.")
         return
 
-    files = ['./output/to_convolve.mp3','./so-vits-svc/so-vits-svc-4.1-Stable/raw/input.wav']
+    files = ['./output/to_convolve.wav','./so-vits-svc/so-vits-svc-4.1-Stable/raw/input.wav']
 
     for folder, spk in models:
-        files.append(f"./output/{spk}.mp3")
+        files.append(f"./output/{spk}.wav")
 
     for file_name in files:
         try:

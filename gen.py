@@ -13,7 +13,8 @@ def build_inference_args(speaker, folder):
         '-c', os.path.join(models_path, folder, 'config.json'),
         '-m', os.path.join(models_path, folder, 'model.pth'),
         '-n', 'input.wav',
-        '-s', speaker
+        '-s', speaker,
+        '-wf', 'wav'
     ]
 
 
@@ -45,6 +46,10 @@ def run_inference(speaker, folder):
     original_path = sys.path[:]
 
     try:
+        # Build args before chdir so the models path resolves against the
+        # working directory, not the so-vits-svc directory
+        inference_args = build_inference_args(speaker, folder)
+
         # Add so-vits-svc to Python path so its imports work
         if so_vits_dir not in sys.path:
             sys.path.insert(0, so_vits_dir)
@@ -53,7 +58,7 @@ def run_inference(speaker, folder):
         os.chdir(so_vits_dir)
 
         # Set sys.argv as if inference_main.py was called from command line
-        sys.argv = build_inference_args(speaker, folder)
+        sys.argv = inference_args
 
         # Import and run inference_main
         # Use importlib to force reimport each time (model paths change per voice)

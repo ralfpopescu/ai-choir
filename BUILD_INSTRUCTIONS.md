@@ -1,115 +1,85 @@
-# ai_choir - Build Instructions
+# ai_choir — Build Instructions (macOS)
 
-## Prerequisites
+## One-time setup
 
-1. **Python 3.8** - The project is tested with Python 3.8
-2. **Virtual Environment** - Create and activate a virtual environment
-3. **Dependencies** - Install required packages
-
-## Setup
-
-1. **Create and activate virtual environment:**
+1. **Python 3.10** (via Homebrew):
    ```bash
-   python3.8 -m venv env3.8
-   source env3.8/bin/activate
+   brew install python@3.10
    ```
 
-2. **Install dependencies:**
+2. **Create the virtual environment and install dependencies:**
    ```bash
-   pip install -r requirements_gui.txt
-   pip install -r requirements.txt
+   /opt/homebrew/opt/python@3.10/bin/python3.10 -m venv venv
+   ./venv/bin/pip install pip==24.0                # omegaconf 2.0.6 needs pip <= 24.0
+   ./venv/bin/pip install "cython<3" "numpy==1.23.5" "setuptools<81" wheel
+   grep -v "^fairseq" requirements.txt > /tmp/req.txt
+   ./venv/bin/pip install -r /tmp/req.txt
+   # fairseq's PyPI sdist is missing source files; install from the git tag.
+   # The CXXFLAGS work around a clang strictness error in torch 2.3 headers.
+   CFLAGS="-Wno-invalid-specialization" CXXFLAGS="-Wno-invalid-specialization" \
+     ./venv/bin/pip install "git+https://github.com/facebookresearch/fairseq.git@v0.12.2" --no-build-isolation
+   ./venv/bin/pip install -r requirements_gui.txt
    ```
 
-3. **Install PyInstaller:**
+3. **Download models** (required — the build bundles these into the app):
    ```bash
-   pip install pyinstaller
+   ./venv/bin/python download_models.py
+   mkdir -p so-vits-svc/so-vits-svc-4.1-Stable/pretrain
+   curl -L -o so-vits-svc/so-vits-svc-4.1-Stable/pretrain/checkpoint_best_legacy_500.pt \
+     'https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/hubert_base.pt'
    ```
 
-4. **Install create-dmg (optional, for DMG creation):**
-   ```bash
-   brew install create-dmg
-   ```
+## Building, signing, and packaging
 
-## Building for macOS
-
-### Quick Build
-Use the provided build script:
 ```bash
-chmod +x build_mac_working.sh
-./build_mac_working.sh
+./build_mac.sh
 ```
 
-### Manual Build
-If you prefer to build manually, use this command:
+That script:
+- builds `dist/ai_choir.app` with PyInstaller (`ai_choir.spec`)
+- signs every binary during the build with your Developer ID
+  (auto-detected from the keychain; override with `CODESIGN_IDENTITY`)
+- creates and signs `dist/ai_choir.dmg` (plain `hdiutil`, no extra tools needed)
+- optionally notarizes if `NOTARY_PROFILE` is set (see script header)
+
+For an unsigned dev build: `CODESIGN_IDENTITY="" ./build_mac.sh`
+
+## Packaging choices
+
+The voice models (~3.7 GB) and hubert speech encoder (~190 MB) **are bundled
+inside the app**, so the result is a single self-contained DMG (~4 GB) that
+can be distributed directly — no first-launch downloads, no reliance on
+Google Drive / Hugging Face URLs staying alive. `models/` and the hubert
+checkpoint must exist in the source tree before building (step 3 above).
+
+Other deliberate choices, so future-you doesn't re-learn them the hard way:
+
+- **No ffmpeg.** The audio pipeline is WAV end-to-end (so-vits-svc is invoked
+  with `-wf wav`, pydub only touches WAV). Do not reintroduce MP3 anywhere in
+  the pipeline or the packaged app will break on machines without ffmpeg.
+- **Signing happens inside PyInstaller** (`codesign_identity` in the spec),
+  which signs nested binaries inside-out. Do not use `codesign --deep` on the
+  finished bundle — that's what kept failing before.
+- **Hardened runtime entitlements** live in `entitlements.plist`
+  (unsigned executable memory for numba's JIT, library validation disabled
+  for the bundled third-party dylibs).
+- `--onedir` mode only. `--onefile` unpacks gigabytes on every launch and
+  breaks signing.
+- **`rthook_site_builtins.py` is load-bearing.** fairseq 0.12.2 accidentally
+  uses the builtin `help` as a dict key (`metadata={help: ...}` in
+  `fairseq/dataclass/configs.py`). That builtin only exists because of the
+  `site` module, which PyInstaller skips — so frozen apps crash with
+  `NameError: name 'help' is not defined` unless the runtime hook restores it.
+
+## Notarization (recommended for distribution)
+
+Without notarization, recipients must right-click > Open the first time.
+One-time credential setup:
 ```bash
-pyinstaller \
-    --exclude-module Carbon \
-    --exclude-module QuickTime \
-    --exclude-module QTKit \
-    --exclude-module Carbon.Framework \
-    --exclude-module QuickTime.Framework \
-    --exclude-module QTKit.Framework \
-    --add-data "models:models" \
-    --add-data "config.json:." \
-    --add-data "gen.py:." \
-    --add-data "gen_process.py:." \
-    --add-data "gen_curve.py:." \
-    --add-data "gen_combine.py:." \
-    --add-data "gen_convolve.py:." \
-    --add-data "util.py:." \
-    --add-data "font.ttf:." \
-    --add-data "bg.png:." \
-    --add-data "bg-button.png:." \
-    --add-data "icon.png:." \
-    --add-data "icon.icns:." \
-    --add-data "icon.ico:." \
-    --onedir \
-    --windowed \
-    --name "ai_choir" \
-    app_gui.py
+xcrun notarytool store-credentials ai-choir \
+  --apple-id <your-apple-id> --team-id JY7MWPBBYW --password <app-specific-password>
 ```
-
-## Important Notes
-
-### Carbon Framework Issue
-The app was originally failing due to Carbon framework dependencies. This was resolved by:
-1. Using `--onedir` mode instead of `--onefile`
-2. Excluding Carbon-related modules
-3. Using a newer version of PyInstaller
-
-### Resource Loading
-The app uses a `get_resource_path()` function to properly load resources (images, fonts, etc.) both in development and when packaged.
-
-### Output
-- **App Bundle**: `dist/ai_choir.app`
-- **DMG File**: `ai_choir.dmg` (if create-dmg is installed)
-
-## Troubleshooting
-
-### Images Not Showing
-If images don't appear in the packaged app:
-1. Ensure the `get_resource_path()` function is used for all resource loading
-2. Check that image files are included in the `--add-data` arguments
-3. Verify the app bundle contains the images in `Contents/Resources/`
-
-### Carbon Framework Error
-If you get Carbon framework errors:
-1. Make sure you're using the `--exclude-module Carbon` arguments
-2. Use `--onedir` mode instead of `--onefile`
-3. Update PyInstaller to the latest version
-
-### Large App Size
-The app bundle is large (~3.5GB) because it includes:
-- All AI/ML models
-- PyTorch and related libraries
-- Audio processing libraries
-- PySide6 GUI framework
-
-## Distribution
-
-The final DMG file (`ai_choir.dmg`) can be distributed to users. They can:
-1. Double-click to mount the DMG
-2. Drag the app to their Applications folder
-3. Run the app normally
-
-The app is self-contained and doesn't require additional installation of Python or dependencies. 
+Then build with:
+```bash
+NOTARY_PROFILE=ai-choir ./build_mac.sh
+```

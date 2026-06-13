@@ -10,7 +10,7 @@ def main():
     config = get_config()
 
     # Load the input audio file (vocal) in stereo
-    input_signal, input_samplerate = librosa.load('./output/to_convolve.mp3', sr=None, mono=False)
+    input_signal, input_samplerate = librosa.load('./output/to_convolve.wav', sr=None, mono=False)
 
     # Load the convolution signal (clap in a room) in stereo
     convolution_signal, convolution_samplerate = librosa.load('impulse.wav', sr=None, mono=False)
@@ -73,7 +73,7 @@ def main():
     mixed_signal = mixed_signal / max_val
 
     # Save the mixed signal to a new audio file
-    sf.write(f"./output/generation_at_{str(int(time.time()))}.mp3", mixed_signal.T, input_samplerate)
+    sf.write(f"./output/generation_at_{str(int(time.time()))}.wav", mixed_signal.T, input_samplerate)
 
 
 if __name__ == "__main__":

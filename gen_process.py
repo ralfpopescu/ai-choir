@@ -6,7 +6,7 @@ import random
 
 
 def gen_input_file(speaker):
-    return f'./so-vits-svc/so-vits-svc-4.1-Stable/results/input.wav_0key_{speaker}_sovits_pm.flac'
+    return f'./so-vits-svc/so-vits-svc-4.1-Stable/results/input.wav_0key_{speaker}_sovits_pm.wav'
 
 
 def change_speed(segment, speed=1.0):
@@ -90,7 +90,7 @@ def main():
         final_audio = final_audio + config["output_gain"]
 
         # Export the final audio
-        final_audio.export(f"./output/{speaker}.mp3", format="mp3")
+        final_audio.export(f"./output/{speaker}.wav", format="wav")
 
 
 if __name__ == "__main__":

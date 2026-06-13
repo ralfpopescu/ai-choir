@@ -1,79 +1,69 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-block_cipher = None
+# Set CODESIGN_IDENTITY to a "Developer ID Application: ..." identity to sign
+# every binary during the build (much more reliable than codesign --deep after
+# the fact). Leave it unset for an unsigned development build.
+codesign_identity = os.environ.get('CODESIGN_IDENTITY') or None
+entitlements_file = 'entitlements.plist' if codesign_identity else None
 
 a = Analysis(
     ['app_gui.py'],
     pathex=[],
     binaries=[],
     datas=[
+        # Voice models (~3.7 GB) and the hubert checkpoint (inside so-vits-svc/
+        # pretrain) are bundled so the app is fully self-contained — no
+        # download URLs to rot. Run download_models.py before building.
         ('models', 'models'),
+        ('so-vits-svc', 'so-vits-svc'),
         ('config.json', '.'),
         ('impulse.wav', '.'),
-        ('gen.py', '.'),
-        ('gen_process.py', '.'),
-        ('gen_curve.py', '.'),
-        ('gen_combine.py', '.'),
-        ('gen_convolve.py', '.'),
-        ('util.py', '.'),
-        ('cleanup.py', '.'),
-        ('so-vits-svc', 'so-vits-svc'),
         ('font.ttf', '.'),
         ('bg.png', '.'),
         ('bg-button.png', '.'),
         ('icon.png', '.'),
         ('icon.icns', '.'),
-        ('icon.ico', '.'),
-    ] + collect_data_files('torch') + collect_data_files('torchaudio') + collect_data_files('librosa') + collect_data_files('transformers'),
+    ] + collect_data_files('librosa')
+      # fairseq discovers its plugins (criterions, tasks, models, ...) via
+      # os.listdir on the package dir, so the .py tree must exist on disk
+      + collect_data_files('fairseq', include_py_files=True),
     hiddenimports=[
-        # PySide6 / Qt
+        # PySide6 / Qt (only the modules the app imports)
         'PySide6.QtCore',
         'PySide6.QtGui',
         'PySide6.QtWidgets',
-        # PyTorch
-        'torch',
-        'torch.nn',
-        'torch.nn.functional',
-        'torch.utils',
-        'torch.utils.data',
-        'torchaudio',
-        'torchaudio.transforms',
-        'torchaudio.functional',
         # Audio processing
         'pydub',
         'pydub.effects',
         'librosa',
-        'librosa.core',
-        'librosa.util',
         'soundfile',
-        'scipy',
         'scipy.signal',
-        'scipy.io',
         'scipy.io.wavfile',
-        # ML / AI
+        # ML / AI (imported at runtime by the so-vits-svc data files)
+        'torch',
+        'torchaudio',
         'fairseq',
-        'transformers',
         'faiss',
         'sklearn',
         'sklearn.cluster',
         'numpy',
         'numba',
+        'antlr4',
+        'transformers',
         # Voice processing
         'pyworld',
         'torchcrepe',
         'parselmouth',
         # Utilities
         'appdirs',
-        'json',
-        'importlib',
+        'requests',
         'PIL',
         'resampy',
         'einops',
         'local_attention',
-        # App modules
+        # App pipeline modules (imported lazily inside gen.py)
         'gen',
         'gen_process',
         'gen_curve',
@@ -81,21 +71,35 @@ a = Analysis(
         'gen_convolve',
         'cleanup',
         'util',
-    ] + collect_submodules('torch') + collect_submodules('torchaudio') + collect_submodules('fairseq') + collect_submodules('PySide6'),
+        'model_manager',
+    ] + collect_submodules('fairseq'),
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['rthook_site_builtins.py'],
     excludes=[
-        'Carbon', 'QuickTime', 'QTKit',
-        'Carbon.Framework', 'QuickTime.Framework', 'QTKit.Framework',
         'tkinter', '_tkinter',
         'gradio', 'fastapi', 'uvicorn', 'flask',
+        'tensorboard', 'tensorboardX',
+        'onnx', 'onnxoptimizer', 'onnxsim',
+        'IPython', 'jupyter',
     ],
     noarchive=False,
     optimize=0,
 )
 
-pyz = PYZ(a.pure, cipher=block_cipher)
+# Don't ship .DS_Store junk or audio left behind in results/raw by dev runs.
+_sovits_root = os.path.join('so-vits-svc', 'so-vits-svc-4.1-Stable')
+_excluded_dirs = (
+    os.path.join(_sovits_root, 'results'),
+    os.path.join(_sovits_root, 'raw'),
+)
+a.datas = [
+    d for d in a.datas
+    if not d[0].endswith('.DS_Store')
+    and not any(d[0].startswith(p + os.sep) for p in _excluded_dirs)
+]
+
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
@@ -106,13 +110,13 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
+    codesign_identity=codesign_identity,
+    entitlements_file=entitlements_file,
     icon='icon.icns',
 )
 
@@ -121,7 +125,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='ai_choir',
 )
@@ -145,6 +149,6 @@ app = BUNDLE(
         'LSBackgroundOnly': False,
         'NSRequiresAquaSystemAppearance': False,
         'NSPrincipalClass': 'NSApplication',
-        'LSMinimumSystemVersion': '10.15',
+        'LSMinimumSystemVersion': '11.0',
     },
 )

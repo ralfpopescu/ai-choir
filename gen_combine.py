@@ -7,23 +7,23 @@ import os
 
 
 file_to_pan = {
-    "./output/female-1.mp3": 0,
-    "./output/female-2.mp3": 0.25,
-    "./output/female-3.mp3": 0.2,
-    "./output/female-4.mp3": -0.25,
-    "./output/male-1.mp3": 0.15,
-    "./output/male-2.mp3": -0.2,
-    "./output/male-3.mp3": -0.15,
+    "./output/female-1.wav": 0,
+    "./output/female-2.wav": 0.25,
+    "./output/female-3.wav": 0.2,
+    "./output/female-4.wav": -0.25,
+    "./output/male-1.wav": 0.15,
+    "./output/male-2.wav": -0.2,
+    "./output/male-3.wav": -0.15,
 }
 
 file_to_gain_key = {
-    "./output/female-1.mp3": "voice_gain_female_1",
-    "./output/female-2.mp3": "voice_gain_female_2",
-    "./output/female-3.mp3": "voice_gain_female_3",
-    "./output/female-4.mp3": "voice_gain_female_4",
-    "./output/male-1.mp3": "voice_gain_male_1",
-    "./output/male-2.mp3": "voice_gain_male_2",
-    "./output/male-3.mp3": "voice_gain_male_3",
+    "./output/female-1.wav": "voice_gain_female_1",
+    "./output/female-2.wav": "voice_gain_female_2",
+    "./output/female-3.wav": "voice_gain_female_3",
+    "./output/female-4.wav": "voice_gain_female_4",
+    "./output/male-1.wav": "voice_gain_male_1",
+    "./output/male-2.wav": "voice_gain_male_2",
+    "./output/male-3.wav": "voice_gain_male_3",
 }
 
 
@@ -39,12 +39,12 @@ def main():
 
     files = []
     for folder, spk in models:
-        files.append(f"./output/{spk}.mp3")
+        files.append(f"./output/{spk}.wav")
 
     # Load and normalize each file
     normalized_audios = []
     for file in files:
-        audio = AudioSegment.from_file(file, format="mp3")
+        audio = AudioSegment.from_file(file, format="wav")
 
         # Apply gain
         gain_key = file_to_gain_key.get(file, None)
@@ -73,7 +73,7 @@ def main():
         overlayed = overlayed.overlay(audio)
 
     # Export the combined audio file as MP3
-    overlayed.export("./output/to_convolve.mp3", format="mp3")
+    overlayed.export("./output/to_convolve.wav", format="wav")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import soundfile as sf
 
 
 def main():
-    should_curve_filenames = ['female-3.mp3', 'male-2.mp3']
+    should_curve_filenames = ['female-3.wav', 'male-2.wav']
 
     # Iterate over input files
     for filename in should_curve_filenames:

@@ -156,3 +156,7 @@ tmp/
 out/
 
 models
+
+# downloaded artifacts
+so-vits-svc/so-vits-svc-4.1-Stable/pretrain/
+model_configs/**/.DS_Store
