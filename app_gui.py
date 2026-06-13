@@ -9,6 +9,10 @@ import appdirs
 # Keep sklearn/joblib sequential: loky worker processes re-exec the frozen
 # binary (ghost GUI instances) and inference gains nothing from them.
 os.environ.setdefault("JOBLIB_MULTIPROCESSING", "0")
+
+# Uniform height for every control in the settings form (sliders, the impulse
+# text field and its Browse button) so the rows line up.
+ROW_CONTROL_H = 28
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QScrollArea, QFormLayout, QDoubleSpinBox,
@@ -218,98 +222,126 @@ class AIChoirApp(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle("ai_choir")
-        self.setMinimumSize(1000, 600)
+        self.setMinimumSize(960, 548)
+        self.resize(1000, 552)
         
         # Main widget and layout
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
-        main_layout.setSpacing(5)  # Reduced from 10
-        
-        # Title section
+        main_layout.setContentsMargins(28, 20, 28, 22)
+        main_layout.setSpacing(14)
+
+        # Header
         title_layout = QHBoxLayout()
+        title_layout.setSpacing(10)
         title_label = QLabel("ai_choir")
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 24px;
-                font-weight: bold;
-                color: black;
-            }
-        """)
+        title_label.setObjectName("titleLabel")
         subtitle_label = QLabel("by offwhite")
-        subtitle_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                color: black;
-                margin-left: 10px;
-            }
-        """)
-        title_layout.addWidget(title_label)
-        title_layout.addWidget(subtitle_label)
-        title_layout.addStretch()
+        subtitle_label.setObjectName("subtitleLabel")
         url_label = QLabel(
             '<a href="https://www.offwhite.studio" '
             'style="color: black; text-decoration: none;">www.offwhite.studio</a>'
         )
         url_label.setOpenExternalLinks(True)
-        url_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                color: black;
-            }
-        """)
-        title_layout.addWidget(url_label)
+        title_layout.addWidget(title_label)
+        title_layout.addWidget(subtitle_label, alignment=Qt.AlignmentFlag.AlignBottom)
+        title_layout.addStretch()
+        title_layout.addWidget(url_label, alignment=Qt.AlignmentFlag.AlignBottom)
         main_layout.addLayout(title_layout)
         
-        # Input file section
-        input_group = QGroupBox("Input Audio File")
-        input_layout = QHBoxLayout()
-        
+        # Input / output row
+        io_row = QHBoxLayout()
+        io_row.setSpacing(28)
+
+        input_col = QVBoxLayout()
+        input_col.setSpacing(6)
+        input_header = QLabel("INPUT FILE")
+        input_header.setObjectName("sectionLabel")
+        input_field_row = QHBoxLayout()
+        input_field_row.setSpacing(8)
         self.input_path = QLineEdit()
         self.input_path.setPlaceholderText("Select a WAV file")
         self.input_path.setReadOnly(True)
-        
         browse_button = QPushButton("Browse")
         browse_button.clicked.connect(self.browse_input_file)
-        
-        input_layout.addWidget(self.input_path)
-        input_layout.addWidget(browse_button)
-        input_group.setLayout(input_layout)
-        
-        # Output directory section
-        output_group = QGroupBox("Output Directory")
-        output_layout = QHBoxLayout()
-        
+        input_field_row.addWidget(self.input_path)
+        input_field_row.addWidget(browse_button)
+        input_col.addWidget(input_header)
+        input_col.addLayout(input_field_row)
+
+        output_col = QVBoxLayout()
+        output_col.setSpacing(6)
+        output_header = QLabel("OUTPUT DIRECTORY")
+        output_header.setObjectName("sectionLabel")
+        output_field_row = QHBoxLayout()
+        output_field_row.setSpacing(8)
         self.output_path = QLineEdit()
         self.output_path.setPlaceholderText("Select an output directory")
         self.output_path.setText(os.path.join(os.path.expanduser("~"), "Music", "ai_choir"))
-        
         output_browse_button = QPushButton("Browse")
         output_browse_button.clicked.connect(self.browse_output_dir)
+        output_field_row.addWidget(self.output_path)
+        output_field_row.addWidget(output_browse_button)
+        output_col.addWidget(output_header)
+        output_col.addLayout(output_field_row)
+
+        io_row.addLayout(input_col, 1)
+        io_row.addLayout(output_col, 1)
+        main_layout.addLayout(io_row)
+        main_layout.addStretch(1)
         
-        output_layout.addWidget(self.output_path)
-        output_layout.addWidget(output_browse_button)
-        output_group.setLayout(output_layout)
-        
-        # Configuration section
-        config_group = QGroupBox("Configuration")
-        
-        # Create two column layout directly in the group box
-        columns_layout = QHBoxLayout()
-        left_column = QFormLayout()
-        right_column = QFormLayout()
-        
-        # Set spacing for both columns
-        left_column.setSpacing(2)
-        right_column.setSpacing(2)
-        left_column.setVerticalSpacing(2)
-        right_column.setVerticalSpacing(2)
-        left_column.setLabelAlignment(Qt.AlignmentFlag.AlignVCenter)
-        right_column.setLabelAlignment(Qt.AlignmentFlag.AlignVCenter)
-        
-        # Load configuration
+        # Settings: sound shaping (left) and voice gains (right)
         self.config = self.get_config()
         self.config_widgets = {}
-        
+
+        display_names = {
+            "impulse_file": "Impulse File",
+            "convolution_reverb_dry_wet": "Reverb Dry/Wet",
+            "stereo_spread": "Stereo Spread",
+            "base_detune": "Base Detune",
+            "detune_drift": "Detune Drift",
+            "detune_frequency": "Detune Frequency",
+            "output_gain": "Output Gain",
+            "voice_gain_female_1": "Female 1",
+            "voice_gain_female_2": "Female 2",
+            "voice_gain_female_3": "Female 3",
+            "voice_gain_female_4": "Female 4",
+            "voice_gain_male_1": "Male 1",
+            "voice_gain_male_2": "Male 2",
+            "voice_gain_male_3": "Male 3",
+        }
+
+        settings_row = QHBoxLayout()
+        settings_row.setSpacing(36)
+
+        left_column = QFormLayout()
+        right_column = QFormLayout()
+        for column in (left_column, right_column):
+            column.setHorizontalSpacing(14)
+            column.setVerticalSpacing(16)
+            column.setLabelAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            # Controls fill the full width of their column instead of sitting
+            # at their size hint (which read as awkwardly centered).
+            column.setFieldGrowthPolicy(
+                QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        sound_header = QLabel("SOUND")
+        sound_header.setObjectName("sectionLabel")
+        left_box = QVBoxLayout()
+        left_box.setSpacing(10)
+        left_box.addWidget(sound_header)
+        left_box.addLayout(left_column)
+        left_box.addStretch()
+
+        voices_header = QLabel("VOICES")
+        voices_header.setObjectName("sectionLabel")
+        right_box = QVBoxLayout()
+        right_box.setSpacing(10)
+        right_box.addWidget(voices_header)
+        right_box.addLayout(right_column)
+        right_box.addStretch()
+
         # Define which fields go in which column
         left_column_fields = [
             "impulse_file", "convolution_reverb_dry_wet", "stereo_spread",
@@ -318,55 +350,38 @@ class AIChoirApp(QMainWindow):
         
         # Create form fields for each configuration item
         for key, value in self.config.items():
-            # Skip cleanup setting
             if key == "cleanup":
                 continue
+            display_key = display_names.get(key, key.replace('_', ' ').title())
                 
             if key == "impulse_file":
-                # Create a horizontal layout for the impulse file selector
                 impulse_layout = QHBoxLayout()
-                impulse_layout.setSpacing(2)
+                impulse_layout.setSpacing(6)
                 impulse_layout.setContentsMargins(0, 0, 0, 0)
-                
-                # Create the line edit and browse button
+
                 impulse_edit = QLineEdit()
+                impulse_edit.setObjectName("rowEdit")
+                impulse_edit.setFixedHeight(ROW_CONTROL_H)
                 impulse_edit.setText("default" if not value else str(value))
                 impulse_edit.setReadOnly(True)
                 impulse_edit.setPlaceholderText("default")
-                impulse_edit.setFixedWidth(100)
                 if not value:
                     impulse_edit.setStyleSheet("color: gray;")
-                
+
                 impulse_browse = QPushButton("Browse")
-                impulse_browse.setFixedWidth(80)
+                impulse_browse.setObjectName("rowButton")
+                impulse_browse.setFixedHeight(ROW_CONTROL_H)
                 impulse_browse.clicked.connect(lambda: self.browse_impulse_file(impulse_edit))
-                
-                # Add help button
-                help_button = QPushButton("?")
-                help_button.setFixedSize(20, 20)
-                help_button.setToolTip("Select an impulse response file for convolution reverb")
-                help_button.setStyleSheet("""
-                    QPushButton {
-                        border-radius: 10px;
-                        font-weight: bold;
-                        padding: 0px;
-                        margin-left: 5px;
-                        background-color: transparent;
-                        border: 1px solid black;
-                        color: #f3f5e3;
-                    }
-                """)
-                
-                impulse_layout.addWidget(impulse_edit)
+
+                impulse_layout.addWidget(impulse_edit, 1)
                 impulse_layout.addWidget(impulse_browse)
-                impulse_layout.addWidget(help_button)
-                
-                # Create a widget to hold the layout
+                impulse_layout.addWidget(self._make_help_button(key))
+
                 impulse_widget = QWidget()
                 impulse_widget.setLayout(impulse_layout)
                 impulse_widget.setContentsMargins(0, 0, 0, 0)
-                
-                left_column.addRow("Impulse File", impulse_widget)
+
+                left_column.addRow(display_key, impulse_widget)
                 self.config_widgets[key] = impulse_edit
                 continue
                 
@@ -374,126 +389,71 @@ class AIChoirApp(QMainWindow):
                 widget = QCheckBox()
                 widget.setChecked(value)
             elif isinstance(value, (int, float)):
-                # Create slider with percentage display
                 slider_widget = self.create_slider_widget(key, value)
                 self.config_widgets[key] = slider_widget
-                
-                # Add to appropriate column
                 if key in left_column_fields:
-                    left_column.addRow(key.replace('_', ' ').title(), slider_widget["widget"])
+                    left_column.addRow(display_key, slider_widget["widget"])
                 else:
-                    right_column.addRow(key.replace('_', ' ').title(), slider_widget["widget"])
+                    right_column.addRow(display_key, slider_widget["widget"])
                 continue
             else:
                 widget = QLineEdit()
                 widget.setText(str(value))
-                widget.setFixedWidth(100)  # Set fixed width for all line edits
-            
-            # Format key for display (replace underscores with spaces, capitalize)
-            display_key = key.replace('_', ' ').title()
-            
-            # Create a horizontal layout for the input and help button
+
             input_layout = QHBoxLayout()
-            input_layout.setSpacing(2)
+            input_layout.setSpacing(6)
             input_layout.setContentsMargins(0, 0, 0, 0)
-            
-            # Add the input widget first
             input_layout.addWidget(widget)
-            
-            # Always add help button for all fields
-            help_button = QPushButton("?")
-            help_button.setFixedSize(20, 20)
-            if key in self.config_info:
-                help_button.setToolTip(f"{self.config_info[key][0]}\nRange: {self.config_info[key][1]}")
-            else:
-                help_button.setToolTip("No description available")
-            help_button.setStyleSheet("""
-                QPushButton {
-                    border-radius: 10px;
-                    font-weight: bold;
-                    padding: 0px;
-                    margin-left: 5px;
-                    background-color: transparent;
-                    border: 1px solid black;
-                    color: #f3f5e3;
-                }
-            """)
-            input_layout.addWidget(help_button)
-            
-            # Create a widget to hold the input layout
+            input_layout.addWidget(self._make_help_button(key))
+
             input_widget = QWidget()
             input_widget.setLayout(input_layout)
             input_widget.setContentsMargins(0, 0, 0, 0)
-            
-            # Add to appropriate column
+
             if key in left_column_fields:
                 left_column.addRow(display_key, input_widget)
             else:
                 right_column.addRow(display_key, input_widget)
-            
+
             self.config_widgets[key] = widget
         
-        # Add columns to the main layout
-        columns_layout.addLayout(left_column)
-        columns_layout.addLayout(right_column)
-        
-        # Add reset button at the bottom of config group
+        settings_row.addLayout(left_box, 1)
+        settings_row.addLayout(right_box, 1)
+        main_layout.addLayout(settings_row)
+        main_layout.addStretch(1)
+
+        # Footer: reset | status + progress | generate
         reset_button = QPushButton("Reset to Defaults")
         reset_button.clicked.connect(self.reset_config)
-        reset_button.setStyleSheet("""
-            QPushButton {
-                margin-top: 10px;
-                background-color: #f0f0f0;
-                border: 1px solid #999;
-                border-radius: 3px;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-        """)
-        
-        # Create a horizontal layout for the reset button to center it
-        reset_layout = QHBoxLayout()
-        reset_layout.addStretch()
-        reset_layout.addWidget(reset_button)
-        reset_layout.addStretch()
-        
-        # Add the reset layout to the columns layout
-        columns_layout.addLayout(reset_layout)
-        
-        # Set the layout directly on the config group
-        config_group.setLayout(columns_layout)
-        
-        # Add all sections to the main layout
-        main_layout.addWidget(input_group)
-        main_layout.addWidget(output_group)
-        main_layout.addWidget(config_group)
-        
-        # Progress section
-        progress_group = QGroupBox()  # Removed the title
-        progress_layout = QVBoxLayout()
-        
-        # Status label
+
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # Progress bar
+
         self.progress_bar = QProgressBar()
-        self.progress_bar.setTextVisible(True)
-        
-        progress_layout.addWidget(self.status_label)
-        progress_layout.addWidget(self.progress_bar)
-        progress_group.setLayout(progress_layout)
-        
-        # Generate button
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(22)
+        self.progress_bar.setMinimumWidth(360)
+
+        progress_col = QVBoxLayout()
+        progress_col.setSpacing(5)
+        progress_col.addWidget(self.status_label)
+        progress_col.addWidget(self.progress_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
+
         self.generate_button = QPushButton("Generate Choir")
-        self.generate_button.setMinimumHeight(40)
+        self.generate_button.setObjectName("generateButton")
+        self.generate_button.setFixedHeight(46)
+        self.generate_button.setMinimumWidth(220)
         self.generate_button.clicked.connect(self.generate_choir)
 
-        main_layout.addWidget(progress_group)
-        main_layout.addWidget(self.generate_button)
-        
+        footer = QHBoxLayout()
+        footer.setSpacing(16)
+        footer.addWidget(reset_button, alignment=Qt.AlignmentFlag.AlignBottom)
+        footer.addStretch()
+        footer.addLayout(progress_col)
+        footer.addStretch()
+        footer.addWidget(self.generate_button, alignment=Qt.AlignmentFlag.AlignBottom)
+        main_layout.addLayout(footer)
+
         self.setCentralWidget(main_widget)
         
     def apply_styles(self):
@@ -537,16 +497,22 @@ class AIChoirApp(QMainWindow):
                 background-repeat: no-repeat;
                 background-attachment: fixed;
             }}
-            QGroupBox {{
-                background-color: transparent;
-                border: none;
-                margin-top: 1em;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
+            QLabel {{
                 color: black;
+                background-color: transparent;
+            }}
+            QLabel#titleLabel {{
+                font-size: 26px;
+                font-weight: bold;
+            }}
+            QLabel#subtitleLabel {{
+                font-size: 14px;
+                margin-bottom: 3px;
+            }}
+            QLabel#sectionLabel {{
+                font-size: 12px;
+                font-weight: bold;
+                color: #545d3f;
             }}
             QPushButton {{
                 background-image: url({get_resource_path("bg-button.png")});
@@ -554,57 +520,69 @@ class AIChoirApp(QMainWindow):
                 background-repeat: no-repeat;
                 color: #f3f5e3;
                 border: none;
-                padding: 8px 16px;
+                padding: 8px 18px;
             }}
             QPushButton:hover {{
                 background-color: rgba(0, 0, 0, 0.1);
             }}
+            QPushButton#generateButton {{
+                font-size: 15px;
+                font-weight: bold;
+            }}
+            QPushButton#rowButton {{
+                padding: 0px 14px;
+            }}
+            QPushButton#helpDot {{
+                background-image: none;
+                background-color: #545d3f;
+                color: #f3f5e3;
+                border: none;
+                padding: 0px;
+                font-size: 11px;
+                font-weight: bold;
+            }}
+            QPushButton#helpDot:hover {{
+                background-color: #6a7551;
+            }}
             QLineEdit, QSpinBox, QDoubleSpinBox {{
-                background-color: transparent;
-                border: 1px solid black;
-                border-radius: 5px;
-                padding: 5px;
+                background-color: rgba(255, 255, 255, 0.35);
+                border: 1px solid #545d3f;
+                padding: 8px;
                 color: black;
             }}
+            QLineEdit#rowEdit {{
+                padding: 2px 8px;
+            }}
+            QSlider {{
+                min-height: 22px;
+            }}
             QSlider::groove:horizontal {{
-                border: 1px solid black;
-                height: 8px;
-                background: transparent;
-                border-radius: 4px;
-                margin: 2px 0;
+                border: 1px solid #545d3f;
+                height: 18px;
+                background: rgba(255, 255, 255, 0.3);
+                margin: 0;
             }}
             QSlider::handle:horizontal {{
-                background: black;
-                border: 1px solid black;
-                width: 18px;
-                margin: -2px 0;
-                border-radius: 9px;
+                background: #545d3f;
+                border: none;
+                width: 10px;
+                margin: 0;
             }}
             QSlider::handle:horizontal:hover {{
-                background: #333;
+                background: #6a7551;
             }}
             QSlider::sub-page:horizontal {{
-                background: rgba(0, 0, 0, 0.2);
-                border-radius: 4px;
+                background: rgba(84, 93, 63, 0.4);
             }}
             QSlider::add-page:horizontal {{
                 background: transparent;
-                border-radius: 4px;
             }}
             QProgressBar {{
-                border: 1px solid black;
-                border-radius: 5px;
-                text-align: center;
-                background-color: transparent;
-                color: black;
+                border: 1px solid #545d3f;
+                background-color: rgba(255, 255, 255, 0.3);
             }}
             QProgressBar::chunk {{
-                background-color: rgba(0, 0, 0, 0.2);
-                border-radius: 4px;
-            }}
-            QLabel {{
-                color: black;
-                background-color: transparent;
+                background-color: #545d3f;
             }}
             QScrollArea {{
                 border: none;
@@ -622,7 +600,6 @@ class AIChoirApp(QMainWindow):
                 background-color: white;
                 border: 1px solid black;
                 padding: 5px;
-                border-radius: 3px;
             }}
         """)
         
@@ -863,6 +840,15 @@ class AIChoirApp(QMainWindow):
                 "All settings have been reset to their default values."
             )
 
+    def _make_help_button(self, key):
+        """Small round help marker; styled via #helpDot in apply_styles."""
+        btn = QPushButton("?")
+        btn.setObjectName("helpDot")
+        btn.setFixedSize(18, 18)
+        desc, value_range = self.config_info.get(key, ("No description available", ""))
+        btn.setToolTip(f"{desc}\nRange: {value_range}" if value_range else desc)
+        return btn
+
     def create_slider_widget(self, key, value):
         """Create a slider widget with percentage display for a given parameter"""
         # Get the range for this parameter
@@ -873,10 +859,11 @@ class AIChoirApp(QMainWindow):
         
         # Create the main widget to hold slider and label
         widget = QWidget()
+        widget.setFixedHeight(ROW_CONTROL_H)
         layout = QHBoxLayout()
-        layout.setSpacing(2)
+        layout.setSpacing(6)
         layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Create slider
         slider = QSlider(Qt.Horizontal)
         slider.setRange(0, 100)  # Always 0-100 for percentage
@@ -893,27 +880,11 @@ class AIChoirApp(QMainWindow):
         # Create percentage label
         label = QLabel(f"{percentage}%")
         label.setFixedWidth(40)
-        label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         
-        # Add help button
-        help_button = QPushButton("?")
-        help_button.setFixedSize(20, 20)
-        if key in self.config_info:
-            help_button.setToolTip(f"{self.config_info[key][0]}\nRange: {self.config_info[key][1]}")
-        else:
-            help_button.setToolTip("No description available")
-        help_button.setStyleSheet("""
-            QPushButton {
-                border-radius: 10px;
-                font-weight: bold;
-                padding: 0px;
-                margin-left: 5px;
-                background-color: transparent;
-                border: 1px solid black;
-                color: #f3f5e3;
-            }
-        """)
-        
+        help_button = self._make_help_button(key)
+
         # Connect slider value change to update label and save config
         def on_slider_changed():
             percentage = slider.value()
