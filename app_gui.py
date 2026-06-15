@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QScrollArea, QFormLayout, QDoubleSpinBox,
                              QSpinBox, QCheckBox, QMessageBox, QComboBox, QGroupBox,
-                             QProgressBar, QSlider)
+                             QProgressBar, QSlider, QGridLayout, QInputDialog)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QFontDatabase, QFont, QIcon
 
@@ -172,7 +172,8 @@ class AIChoirApp(QMainWindow):
     config_info = {
         "impulse_file": ("Select an impulse response file for convolution reverb", ""),
         "convolution_reverb_dry_wet": ("Adds convolution reverb to the output. Switch out the impulse.wav file for whatever impulse response you want!", "0 - 1.0"),
-        "stereo_spread": ("How panned the voices should be. 0 is mono, 4.0 will be hard left/right", "0 to 4.0"),
+        "formant_shift": ("Shifts the formants (perceived vocal size) without changing pitch. Negative = larger/darker, positive = smaller/brighter", "-1.0 to 1.0"),
+        "formant_drift": ("How much each voice's formants randomly waver over time, for a more natural ensemble", "0 to 1.0"),
         "base_detune": ("How detuned the voices should be", "0 to 0.05"),
         "detune_drift": ("How much the voices should fluctuate around the base detuning", "0 to 25% of base_detune"),
         "detune_frequency": ("How long voices will linger on a detuned note", "0 to 5.0"),
@@ -184,7 +185,156 @@ class AIChoirApp(QMainWindow):
         "voice_gain_male_1": ("Gain for male voice 1", "-inf to inf"),
         "voice_gain_male_2": ("Gain for male voice 2", "-inf to inf"),
         "voice_gain_male_3": ("Gain for male voice 3", "-inf to inf"),
+        "voice_pan_female_1": ("Stereo position for female voice 1 (left to right)", "-1.0 to 1.0"),
+        "voice_pan_female_2": ("Stereo position for female voice 2 (left to right)", "-1.0 to 1.0"),
+        "voice_pan_female_3": ("Stereo position for female voice 3 (left to right)", "-1.0 to 1.0"),
+        "voice_pan_female_4": ("Stereo position for female voice 4 (left to right)", "-1.0 to 1.0"),
+        "voice_pan_male_1": ("Stereo position for male voice 1 (left to right)", "-1.0 to 1.0"),
+        "voice_pan_male_2": ("Stereo position for male voice 2 (left to right)", "-1.0 to 1.0"),
+        "voice_pan_male_3": ("Stereo position for male voice 3 (left to right)", "-1.0 to 1.0"),
         "cleanup": ("Whether to clean up temporary files after generation", "true/false")
+    }
+
+    # Single source of truth for defaults (used on first run and on reset).
+    # Pans are energy-balanced: the 4 women sit 2 left / 2 right and the 3 men
+    # 1 left / 1 right / 1 centre, so boosting either gender keeps L/R even.
+    DEFAULT_CONFIG = {
+        "impulse_file": "",
+        "convolution_reverb_dry_wet": 0.08,
+        "formant_shift": 0.0,
+        "formant_drift": 0.0,
+        "base_detune": 0.03,
+        "detune_drift": 0.0075,
+        "detune_frequency": 0.3,
+        "output_gain": -10,
+        "voice_gain_female_1": 0.0,
+        "voice_gain_female_2": 0.0,
+        "voice_gain_female_3": 0.0,
+        "voice_gain_female_4": 0.0,
+        "voice_gain_male_1": 0.0,
+        "voice_gain_male_2": 0.0,
+        "voice_gain_male_3": 0.0,
+        "voice_pan_female_1": -1.0,
+        "voice_pan_female_2": 1.0,
+        "voice_pan_female_3": -0.4,
+        "voice_pan_female_4": 0.4,
+        "voice_pan_male_1": -0.2,
+        "voice_pan_male_2": 0.2,
+        "voice_pan_male_3": 0.0,
+        "cleanup": True,
+    }
+
+    # Pan profiles shared by presets. All are L/R energy-balanced (sum 0) so
+    # any gain change keeps the stereo image centred.
+    _PANS_WIDE = {  # women 2L/2R, men 1L/1R/1C
+        "voice_pan_female_1": -1.0, "voice_pan_female_2": 1.0,
+        "voice_pan_female_3": -0.4, "voice_pan_female_4": 0.4,
+        "voice_pan_male_1": -0.2, "voice_pan_male_2": 0.2, "voice_pan_male_3": 0.0,
+    }
+    _PANS_WIDER = {
+        "voice_pan_female_1": -1.0, "voice_pan_female_2": 1.0,
+        "voice_pan_female_3": -0.6, "voice_pan_female_4": 0.6,
+        "voice_pan_male_1": -0.35, "voice_pan_male_2": 0.35, "voice_pan_male_3": 0.0,
+    }
+    _PANS_TIGHT = {
+        "voice_pan_female_1": -0.5, "voice_pan_female_2": 0.5,
+        "voice_pan_female_3": -0.2, "voice_pan_female_4": 0.2,
+        "voice_pan_male_1": -0.1, "voice_pan_male_2": 0.1, "voice_pan_male_3": 0.0,
+    }
+    _PANS_FEMALE_SPREAD = {  # men centred, women wide
+        "voice_pan_female_1": -1.0, "voice_pan_female_2": 1.0,
+        "voice_pan_female_3": -0.5, "voice_pan_female_4": 0.5,
+        "voice_pan_male_1": 0.0, "voice_pan_male_2": 0.0, "voice_pan_male_3": 0.0,
+    }
+    _PANS_MALE_SPREAD = {  # women centred, men wide
+        "voice_pan_female_1": 0.0, "voice_pan_female_2": 0.0,
+        "voice_pan_female_3": 0.0, "voice_pan_female_4": 0.0,
+        "voice_pan_male_1": -0.7, "voice_pan_male_2": 0.7, "voice_pan_male_3": 0.0,
+    }
+    _PANS_CENTERED_LEADS = {  # female 2 & 3 up the middle, the rest spread
+        "voice_pan_female_1": -0.7, "voice_pan_female_2": 0.0,
+        "voice_pan_female_3": 0.0, "voice_pan_female_4": 0.7,
+        "voice_pan_male_1": -0.4, "voice_pan_male_2": 0.4, "voice_pan_male_3": 0.0,
+    }
+    _GAINS_FLAT = {f"voice_gain_{v}": 0.0 for v in
+                   ("female_1", "female_2", "female_3", "female_4",
+                    "male_1", "male_2", "male_3")}
+
+    # Each preset is a full set of the sound + voice params (not impulse/output).
+    # Reverb is dry by default; only Wide & Lush and Cathedral are roomy.
+    PRESETS = {
+        "Balanced": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.0,
+            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Female Dominated": {
+            **_PANS_WIDE,
+            "voice_gain_female_1": 2.0, "voice_gain_female_2": 2.0,
+            "voice_gain_female_3": 2.0, "voice_gain_female_4": 2.0,
+            "voice_gain_male_1": -6.0, "voice_gain_male_2": -6.0, "voice_gain_male_3": -6.0,
+            "formant_shift": 0.12, "formant_drift": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Male Dominated": {
+            **_PANS_WIDE,
+            "voice_gain_female_1": -6.0, "voice_gain_female_2": -6.0,
+            "voice_gain_female_3": -6.0, "voice_gain_female_4": -6.0,
+            "voice_gain_male_1": 2.0, "voice_gain_male_2": 2.0, "voice_gain_male_3": 2.0,
+            "formant_shift": -0.12, "formant_drift": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Female Spread": {
+            **_PANS_FEMALE_SPREAD, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.2,
+            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Male Spread": {
+            **_PANS_MALE_SPREAD, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.2,
+            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Centered Leads": {
+            **_PANS_CENTERED_LEADS, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.0,
+            "base_detune": 0.025, "detune_drift": 0.006, "detune_frequency": 0.3,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Light Chorus": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.15,
+            "base_detune": 0.01, "detune_drift": 0.0025, "detune_frequency": 0.5,
+            "convolution_reverb_dry_wet": 0.06,
+        },
+        "Deep & Low": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": -0.3, "formant_drift": 0.2,
+            "base_detune": 0.035, "detune_drift": 0.008, "detune_frequency": 0.25,
+            "convolution_reverb_dry_wet": 0.12,
+        },
+        "Tight & Dry": {
+            **_PANS_TIGHT, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.0,
+            "base_detune": 0.012, "detune_drift": 0.002, "detune_frequency": 0.25,
+            "convolution_reverb_dry_wet": 0.04,
+        },
+        "Wide & Lush": {
+            **_PANS_WIDER, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.5,
+            "base_detune": 0.04, "detune_drift": 0.01, "detune_frequency": 0.4,
+            "convolution_reverb_dry_wet": 0.5,
+        },
+        "Cathedral": {
+            **_PANS_WIDER, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.35,
+            "convolution_reverb_dry_wet": 0.7,
+        },
     }
 
     def __init__(self):
@@ -196,12 +346,23 @@ class AIChoirApp(QMainWindow):
         
         # Store slider ranges for each parameter
         self.slider_ranges = {}
-        
+        # True while a preset/reset is being applied, so save_config doesn't
+        # flip the preset dropdown to "Custom" mid-apply.
+        self._applying_preset = False
+        # The config keys a preset captures (everything except impulse/output).
+        self.preset_keys = list(self.PRESETS["Balanced"].keys())
+        # User-saved presets live alongside the config.
+        self.user_presets_file = self.config_dir / "user_presets.json"
+        self.user_presets = self._load_user_presets()
+
         self.initUI()
         self.apply_styles()
-        
+
         # Connect config change signals
         self.connect_config_signals()
+
+        # Show which preset (if any) the loaded config matches.
+        self._set_preset_combo(self._detect_preset())
 
         # Models ship inside the app; this only fails on a broken bundle or a
         # source checkout that hasn't run download_models.py yet.
@@ -222,8 +383,8 @@ class AIChoirApp(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle("ai_choir")
-        self.setMinimumSize(960, 548)
-        self.resize(1000, 552)
+        self.setMinimumSize(960, 580)
+        self.resize(1000, 590)
         
         # Main widget and layout
         main_widget = QWidget()
@@ -231,7 +392,7 @@ class AIChoirApp(QMainWindow):
         main_layout.setContentsMargins(28, 20, 28, 22)
         main_layout.setSpacing(14)
 
-        # Header
+        # Header: title (left), preset controls (center), url (right)
         title_layout = QHBoxLayout()
         title_layout.setSpacing(10)
         title_label = QLabel("ai_choir")
@@ -243,12 +404,36 @@ class AIChoirApp(QMainWindow):
             'style="color: black; text-decoration: none;">www.offwhite.studio</a>'
         )
         url_label.setOpenExternalLinks(True)
+
+        preset_label = QLabel("PRESET")
+        preset_label.setObjectName("sectionLabel")
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(
+            list(self.PRESETS.keys()) + list(self.user_presets.keys()))
+        self.preset_combo.setFixedWidth(170)
+        self.preset_combo.activated.connect(
+            lambda _i: self.apply_preset(self.preset_combo.currentText()))
+        save_preset_btn = QPushButton("Save")
+        save_preset_btn.setObjectName("rowButton")
+        save_preset_btn.setFixedHeight(ROW_CONTROL_H)
+        save_preset_btn.clicked.connect(self.save_preset)
+        delete_preset_btn = QPushButton("Delete")
+        delete_preset_btn.setObjectName("rowButton")
+        delete_preset_btn.setFixedHeight(ROW_CONTROL_H)
+        delete_preset_btn.clicked.connect(self.delete_preset)
+
+        vc = Qt.AlignmentFlag.AlignVCenter
         title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label, alignment=Qt.AlignmentFlag.AlignBottom)
         title_layout.addStretch()
+        title_layout.addWidget(preset_label, alignment=vc)
+        title_layout.addWidget(self.preset_combo, alignment=vc)
+        title_layout.addWidget(save_preset_btn, alignment=vc)
+        title_layout.addWidget(delete_preset_btn, alignment=vc)
+        title_layout.addStretch()
         title_layout.addWidget(url_label, alignment=Qt.AlignmentFlag.AlignBottom)
         main_layout.addLayout(title_layout)
-        
+
         # Input / output row
         io_row = QHBoxLayout()
         io_row.setSpacing(28)
@@ -289,7 +474,7 @@ class AIChoirApp(QMainWindow):
         io_row.addLayout(output_col, 1)
         main_layout.addLayout(io_row)
         main_layout.addStretch(1)
-        
+
         # Settings: sound shaping (left) and voice gains (right)
         self.config = self.get_config()
         self.config_widgets = {}
@@ -297,34 +482,26 @@ class AIChoirApp(QMainWindow):
         display_names = {
             "impulse_file": "Impulse File",
             "convolution_reverb_dry_wet": "Reverb Dry/Wet",
-            "stereo_spread": "Stereo Spread",
+            "formant_shift": "Formant",
+            "formant_drift": "Formant Drift",
             "base_detune": "Base Detune",
             "detune_drift": "Detune Drift",
             "detune_frequency": "Detune Frequency",
             "output_gain": "Output Gain",
-            "voice_gain_female_1": "Female 1",
-            "voice_gain_female_2": "Female 2",
-            "voice_gain_female_3": "Female 3",
-            "voice_gain_female_4": "Female 4",
-            "voice_gain_male_1": "Male 1",
-            "voice_gain_male_2": "Male 2",
-            "voice_gain_male_3": "Male 3",
         }
 
         settings_row = QHBoxLayout()
         settings_row.setSpacing(36)
 
         left_column = QFormLayout()
-        right_column = QFormLayout()
-        for column in (left_column, right_column):
-            column.setHorizontalSpacing(14)
-            column.setVerticalSpacing(16)
-            column.setLabelAlignment(
-                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            # Controls fill the full width of their column instead of sitting
-            # at their size hint (which read as awkwardly centered).
-            column.setFieldGrowthPolicy(
-                QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        left_column.setHorizontalSpacing(14)
+        left_column.setVerticalSpacing(16)
+        left_column.setLabelAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        # Controls fill the full width of their column instead of sitting at
+        # their size hint (which read as awkwardly centered).
+        left_column.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         sound_header = QLabel("SOUND")
         sound_header.setObjectName("sectionLabel")
@@ -339,21 +516,17 @@ class AIChoirApp(QMainWindow):
         right_box = QVBoxLayout()
         right_box.setSpacing(10)
         right_box.addWidget(voices_header)
-        right_box.addLayout(right_column)
-        right_box.addStretch()
 
-        # Define which fields go in which column
-        left_column_fields = [
-            "impulse_file", "convolution_reverb_dry_wet", "stereo_spread",
-            "base_detune", "detune_drift", "detune_frequency", "output_gain"
+        # SOUND column: every non-voice control, in config order
+        sound_fields = [
+            "impulse_file", "convolution_reverb_dry_wet",
+            "formant_shift", "formant_drift",
+            "base_detune", "detune_drift", "detune_frequency", "output_gain",
         ]
-        
-        # Create form fields for each configuration item
-        for key, value in self.config.items():
-            if key == "cleanup":
-                continue
+        for key in sound_fields:
+            value = self.config[key]
             display_key = display_names.get(key, key.replace('_', ' ').title())
-                
+
             if key == "impulse_file":
                 impulse_layout = QHBoxLayout()
                 impulse_layout.setSpacing(6)
@@ -383,40 +556,48 @@ class AIChoirApp(QMainWindow):
 
                 left_column.addRow(display_key, impulse_widget)
                 self.config_widgets[key] = impulse_edit
-                continue
-                
-            if isinstance(value, bool):
-                widget = QCheckBox()
-                widget.setChecked(value)
-            elif isinstance(value, (int, float)):
+            else:
                 slider_widget = self.create_slider_widget(key, value)
                 self.config_widgets[key] = slider_widget
-                if key in left_column_fields:
-                    left_column.addRow(display_key, slider_widget["widget"])
-                else:
-                    right_column.addRow(display_key, slider_widget["widget"])
-                continue
-            else:
-                widget = QLineEdit()
-                widget.setText(str(value))
+                left_column.addRow(display_key, slider_widget["widget"])
 
-            input_layout = QHBoxLayout()
-            input_layout.setSpacing(6)
-            input_layout.setContentsMargins(0, 0, 0, 0)
-            input_layout.addWidget(widget)
-            input_layout.addWidget(self._make_help_button(key))
+        # VOICES column: one row per voice with gain + pan, under sub-headers
+        voices = [
+            ("Female 1", "voice_gain_female_1", "voice_pan_female_1"),
+            ("Female 2", "voice_gain_female_2", "voice_pan_female_2"),
+            ("Female 3", "voice_gain_female_3", "voice_pan_female_3"),
+            ("Female 4", "voice_gain_female_4", "voice_pan_female_4"),
+            ("Male 1", "voice_gain_male_1", "voice_pan_male_1"),
+            ("Male 2", "voice_gain_male_2", "voice_pan_male_2"),
+            ("Male 3", "voice_gain_male_3", "voice_pan_male_3"),
+        ]
+        voices_grid = QGridLayout()
+        voices_grid.setHorizontalSpacing(10)
+        voices_grid.setVerticalSpacing(13)
+        voices_grid.setContentsMargins(0, 0, 0, 0)
+        gain_hdr = QLabel("GAIN")
+        gain_hdr.setObjectName("subHeader")
+        pan_hdr = QLabel("PAN")
+        pan_hdr.setObjectName("subHeader")
+        voices_grid.addWidget(gain_hdr, 0, 1, 1, 2)
+        voices_grid.addWidget(pan_hdr, 0, 3, 1, 2)
+        for r, (name, gkey, pkey) in enumerate(voices, start=1):
+            g = self._make_slider(gkey, self.config[gkey], fmt=self._fmt_gain)
+            p = self._make_slider(pkey, self.config[pkey], fmt=self._fmt_pan)
+            self.config_widgets[gkey] = g
+            self.config_widgets[pkey] = p
+            g["slider"].setMinimumHeight(ROW_CONTROL_H)
+            p["slider"].setMinimumHeight(ROW_CONTROL_H)
+            voices_grid.addWidget(QLabel(name), r, 0)
+            voices_grid.addWidget(g["slider"], r, 1)
+            voices_grid.addWidget(g["label"], r, 2)
+            voices_grid.addWidget(p["slider"], r, 3)
+            voices_grid.addWidget(p["label"], r, 4)
+        voices_grid.setColumnStretch(1, 1)
+        voices_grid.setColumnStretch(3, 1)
+        right_box.addLayout(voices_grid)
+        right_box.addStretch()
 
-            input_widget = QWidget()
-            input_widget.setLayout(input_layout)
-            input_widget.setContentsMargins(0, 0, 0, 0)
-
-            if key in left_column_fields:
-                left_column.addRow(display_key, input_widget)
-            else:
-                right_column.addRow(display_key, input_widget)
-
-            self.config_widgets[key] = widget
-        
         settings_row.addLayout(left_box, 1)
         settings_row.addLayout(right_box, 1)
         main_layout.addLayout(settings_row)
@@ -514,6 +695,11 @@ class AIChoirApp(QMainWindow):
                 font-weight: bold;
                 color: #545d3f;
             }}
+            QLabel#subHeader {{
+                font-size: 10px;
+                font-weight: bold;
+                color: #7a8466;
+            }}
             QPushButton {{
                 background-image: url({get_resource_path("bg-button.png")});
                 background-position: center;
@@ -552,6 +738,23 @@ class AIChoirApp(QMainWindow):
             }}
             QLineEdit#rowEdit {{
                 padding: 2px 8px;
+            }}
+            QComboBox {{
+                background-color: rgba(255, 255, 255, 0.35);
+                border: 1px solid #545d3f;
+                padding: 4px 8px;
+                color: black;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 18px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: #efeee6;
+                color: black;
+                border: 1px solid #545d3f;
+                selection-background-color: #545d3f;
+                selection-color: #f3f5e3;
             }}
             QSlider {{
                 min-height: 22px;
@@ -620,32 +823,24 @@ class AIChoirApp(QMainWindow):
                 widget.stateChanged.connect(self.save_config)
 
     def get_config(self):
+        saved = None
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r') as file:
-                    return json.load(file)
+                    saved = json.load(file)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             QMessageBox.warning(self, "Warning", f"Could not load configuration: {str(e)}\nUsing default configuration.")
-        
-        # Default configuration
-        return {
-            "impulse_file": "",
-            "convolution_reverb_dry_wet": 0.2,
-            "stereo_spread": 1.5,
-            "base_detune": 0.014,
-            "detune_drift": 0.002,
-            "detune_frequency": 0.3,
-            "output_gain": -10,
-            "voice_gain_female_1": 0.0,
-            "voice_gain_female_2": 0.0,
-            "voice_gain_female_3": 0.0,
-            "voice_gain_female_4": 0.0,
-            "voice_gain_male_1": 0.0,
-            "voice_gain_male_2": 0.0,
-            "voice_gain_male_3": 0.0,
-            "cleanup": True
-        }
-        
+
+        # Start from defaults and overlay only known keys, so an older saved
+        # config migrates cleanly: obsolete keys (e.g. stereo_spread) are
+        # dropped and newly added ones (formant, per-voice pan) get defaults.
+        config = dict(self.DEFAULT_CONFIG)
+        if isinstance(saved, dict):
+            for key in self.DEFAULT_CONFIG:
+                if key in saved:
+                    config[key] = saved[key]
+        return config
+
     def parse_range(self, range_str):
         """Parse a range string into min and max values."""
         if range_str == "true/false":
@@ -704,6 +899,11 @@ class AIChoirApp(QMainWindow):
                 json.dump(self.config, file, indent=4)
         except Exception as e:
             QMessageBox.warning(self, "Warning", f"Could not save configuration: {str(e)}")
+            return
+
+        # A manual edit means we're no longer on a named preset.
+        if not self._applying_preset:
+            self._set_preset_combo("Custom")
     
     def browse_input_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -789,56 +989,131 @@ class AIChoirApp(QMainWindow):
         )
         
         if reply == QMessageBox.Yes:
-            # Get default configuration
-            default_config = {
-                "impulse_file": "",
-                "convolution_reverb_dry_wet": 0.2,
-                "stereo_spread": 1.5,
-                "base_detune": 0.014,
-                "detune_drift": 0.002,
-                "detune_frequency": 0.3,
-                "output_gain": -10,
-                "voice_gain_female_1": 0.0,
-                "voice_gain_female_2": 0.0,
-                "voice_gain_female_3": 0.0,
-                "voice_gain_female_4": 0.0,
-                "voice_gain_male_1": 0.0,
-                "voice_gain_male_2": 0.0,
-                "voice_gain_male_3": 0.0,
-                "cleanup": True
-            }
-            
-            # Update all widgets with default values
-            for key, value in default_config.items():
-                widget = self.config_widgets.get(key)
-                if widget is not None:
-                    if isinstance(widget, dict) and "slider" in widget:
-                        # For slider widgets, convert value to percentage
-                        percentage = self.value_to_slider(key, value)
-                        widget["slider"].setValue(percentage)
-                        widget["label"].setText(f"{percentage}%")
-                    elif isinstance(widget, QLineEdit):
-                        if key == "impulse_file":
-                            widget.setText("default")
-                            widget.setStyleSheet("color: gray;")
-                        else:
-                            widget.setText(str(value))
-                    elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
-                        widget.setValue(float(value))
-                    elif isinstance(widget, QCheckBox):
-                        widget.setChecked(bool(value))
-            
-            # Update the config dictionary
-            self.config = default_config.copy()
-            
-            # Save the reset configuration
-            self.save_config()
-            
+            self._applying_preset = True
+            try:
+                self._apply_values(self.DEFAULT_CONFIG)
+                self.save_config()
+            finally:
+                self._applying_preset = False
+            self._set_preset_combo("Balanced")
             QMessageBox.information(
                 self,
                 "Configuration Reset",
                 "All settings have been reset to their default values."
             )
+
+    def _apply_values(self, values):
+        """Push a dict of config values into both the widgets and self.config.
+
+        Slider moves fire valueChanged, which re-renders each readout, so the
+        labels (dB / pan / %) stay correct without touching them directly.
+        """
+        for key, value in values.items():
+            self.config[key] = value
+            widget = self.config_widgets.get(key)
+            if widget is None:
+                continue
+            if isinstance(widget, dict) and "slider" in widget:
+                widget["slider"].setValue(self.value_to_slider(key, value))
+            elif isinstance(widget, QLineEdit):
+                if key == "impulse_file" and not value:
+                    widget.setText("default")
+                    widget.setStyleSheet("color: gray;")
+                else:
+                    widget.setText(str(value))
+            elif isinstance(widget, QCheckBox):
+                widget.setChecked(bool(value))
+
+    def _all_presets(self):
+        """Built-in presets plus the user's saved ones (user wins on clash)."""
+        return {**self.PRESETS, **self.user_presets}
+
+    def apply_preset(self, name):
+        """Apply a named preset to every control it specifies."""
+        preset = self._all_presets().get(name)
+        if not preset:
+            return
+        self._applying_preset = True
+        try:
+            self._apply_values(preset)
+            self.save_config()
+        finally:
+            self._applying_preset = False
+        self._set_preset_combo(name)
+
+    def _set_preset_combo(self, name):
+        """Reflect the active preset (or Custom) in the dropdown without
+        re-triggering apply_preset."""
+        combo = getattr(self, "preset_combo", None)
+        if combo is None:
+            return
+        combo.blockSignals(True)
+        if combo.findText(name) < 0:
+            combo.addItem(name)
+        combo.setCurrentText(name)
+        combo.blockSignals(False)
+
+    def _detect_preset(self):
+        """Name of the preset matching the current config, else 'Custom'."""
+        for name, preset in self._all_presets().items():
+            if all(abs(float(self.config.get(k, 1e18)) - float(v)) < 1e-6
+                   for k, v in preset.items()):
+                return name
+        return "Custom"
+
+    def _load_user_presets(self):
+        try:
+            if self.user_presets_file.exists():
+                with open(self.user_presets_file) as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except (OSError, json.JSONDecodeError):
+            pass
+        return {}
+
+    def _save_user_presets(self):
+        try:
+            with open(self.user_presets_file, 'w') as f:
+                json.dump(self.user_presets, f, indent=4)
+        except OSError as e:
+            QMessageBox.warning(self, "Warning", f"Could not save preset: {e}")
+
+    def save_preset(self):
+        """Capture the current settings as a named user preset."""
+        name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
+        name = name.strip()
+        if not ok or not name:
+            return
+        if name in self.PRESETS:
+            QMessageBox.warning(
+                self, "Save Preset",
+                f"'{name}' is a built-in preset name. Please choose another.")
+            return
+        self.user_presets[name] = {k: self.config[k] for k in self.preset_keys}
+        self._save_user_presets()
+        if self.preset_combo.findText(name) < 0:
+            self.preset_combo.addItem(name)
+        self._set_preset_combo(name)
+
+    def delete_preset(self):
+        """Delete the currently selected user preset (built-ins are protected)."""
+        name = self.preset_combo.currentText()
+        if name not in self.user_presets:
+            QMessageBox.information(
+                self, "Delete Preset",
+                "Only your own saved presets can be deleted.")
+            return
+        if QMessageBox.question(
+                self, "Delete Preset", f"Delete saved preset '{name}'?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        del self.user_presets[name]
+        self._save_user_presets()
+        idx = self.preset_combo.findText(name)
+        if idx >= 0:
+            self.preset_combo.removeItem(idx)
+        self._set_preset_combo(self._detect_preset())
 
     def _make_help_button(self, key):
         """Small round help marker; styled via #helpDot in apply_styles."""
@@ -849,59 +1124,72 @@ class AIChoirApp(QMainWindow):
         btn.setToolTip(f"{desc}\nRange: {value_range}" if value_range else desc)
         return btn
 
-    def create_slider_widget(self, key, value):
-        """Create a slider widget with percentage display for a given parameter"""
-        # Get the range for this parameter
+    @staticmethod
+    def _fmt_gain(v):
+        """Format a gain value (dB) for display."""
+        return "0 dB" if abs(v) < 0.5 else f"{v:+.0f} dB"
+
+    @staticmethod
+    def _fmt_pan(v):
+        """Format a pan value (-1..1) as e.g. 20L / C / 30R."""
+        if abs(v) < 0.01:
+            return "C"
+        return f"{round(abs(v) * 50)}{'L' if v < 0 else 'R'}"
+
+    def _make_slider(self, key, value, fmt=None):
+        """Build a 0-100 slider plus its readout, wired to update + save.
+
+        ``fmt`` maps the real (un-percentaged) value to a display string; when
+        omitted the readout shows the raw slider percentage. Returns
+        {"slider", "label"}; used directly in the voice grid and wrapped with a
+        help button by create_slider_widget for the SOUND form.
+        """
         min_val, max_val = self.get_parameter_range(key)
-        
-        # Store the range for later use
         self.slider_ranges[key] = (min_val, max_val)
-        
-        # Create the main widget to hold slider and label
+
+        slider = QSlider(Qt.Horizontal)
+        slider.setRange(0, 100)  # always 0-100; mapped to real value on save
+        if max_val != min_val:
+            percentage = int(((value - min_val) / (max_val - min_val)) * 100)
+            percentage = max(0, min(100, percentage))
+        else:
+            percentage = 50
+        slider.setValue(percentage)
+
+        label = QLabel()
+        label.setFixedWidth(48 if fmt else 40)
+        label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        def render():
+            if fmt:
+                label.setText(fmt(self.slider_to_value(key, slider.value())))
+            else:
+                label.setText(f"{slider.value()}%")
+
+        render()
+
+        def on_slider_changed():
+            render()
+            self.save_config()
+
+        slider.valueChanged.connect(on_slider_changed)
+        return {"slider": slider, "label": label}
+
+    def create_slider_widget(self, key, value):
+        """Slider + % readout + help button as one row widget (SOUND form)."""
+        parts = self._make_slider(key, value)
         widget = QWidget()
         widget.setFixedHeight(ROW_CONTROL_H)
         layout = QHBoxLayout()
         layout.setSpacing(6)
         layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create slider
-        slider = QSlider(Qt.Horizontal)
-        slider.setRange(0, 100)  # Always 0-100 for percentage
-        
-        # Convert the actual value to percentage
-        if max_val != min_val:
-            percentage = int(((value - min_val) / (max_val - min_val)) * 100)
-            percentage = max(0, min(100, percentage))  # Clamp to 0-100
-        else:
-            percentage = 50  # Default to middle if no range
-        
-        slider.setValue(percentage)
-        
-        # Create percentage label
-        label = QLabel(f"{percentage}%")
-        label.setFixedWidth(40)
-        label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        
-        help_button = self._make_help_button(key)
-
-        # Connect slider value change to update label and save config
-        def on_slider_changed():
-            percentage = slider.value()
-            label.setText(f"{percentage}%")
-            self.save_config()
-        
-        slider.valueChanged.connect(on_slider_changed)
-        
-        # Add widgets to layout
-        layout.addWidget(slider)
-        layout.addWidget(label)
-        layout.addWidget(help_button)
-        
+        layout.addWidget(parts["slider"])
+        layout.addWidget(parts["label"])
+        layout.addWidget(self._make_help_button(key))
         widget.setLayout(layout)
-        
-        # Store both slider and label for later access
-        return {"slider": slider, "label": label, "widget": widget}
+        parts["widget"] = widget
+        return parts
 
     def get_parameter_range(self, key):
         """Get the min and max values for a parameter"""
