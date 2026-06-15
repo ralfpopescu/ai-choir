@@ -25,13 +25,19 @@ segment_lengths = [400, 600, 800, 1000, 500, 700, 900]
 def main():
     config = get_config()
     base_detune = config["base_detune"]
+    # detune_drift is a 0..1 "variation amount" (fraction of the maximum that
+    # still keeps the per-segment detune positive: idx%4 maxes at 3, so the
+    # absolute step must stay <= base_detune/4). Storing it relative makes every
+    # value valid by construction -- no invalid base/variation combination.
+    variation = max(0.0, min(1.0, config["detune_drift"]))
+    drift = variation * base_detune * 0.25
 
     def generate_amount(idx):
         if idx % 6 == 0:
             return base_detune / 2
         if idx % 2 == 0:
-            return base_detune + (idx % 4 * config["detune_drift"])
-        return base_detune - (idx % 4 * config["detune_drift"])
+            return base_detune + (idx % 4 * drift)
+        return base_detune - (idx % 4 * drift)
 
     # Process each input file
     for idx, speaker in enumerate(get_speakers()):

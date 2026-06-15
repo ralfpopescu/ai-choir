@@ -88,9 +88,8 @@ def check_config():
     if missing_fields:
         raise Exception(f"The following required fields are missing in the config: {', '.join(missing_fields)}")
 
-    if config["detune_drift"] * 4 > config["base_detune"]:
-        raise Exception(f"detune_drift can't be more than 25% of base_detune")
-    
+    # detune_drift is clamped where it's used (gen_process), so no hard failure
+    # here if a stale config has a larger value.
     return config
 
 

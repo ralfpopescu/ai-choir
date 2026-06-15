@@ -4,7 +4,7 @@
     "formant_shift": 0.0,
     "formant_drift": 0.0,
     "base_detune": 0.03,
-    "detune_drift": 0.0075,
+    "detune_drift": 0.6,
     "detune_frequency": 0.3,
     "output_gain": -10.0,
     "voice_gain_female_1": 0.0,
