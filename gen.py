@@ -117,13 +117,18 @@ def run_generation(input_file, status_callback=None):
     import gen_curve
     gen_curve.main()
 
+    # Formant shaping (pyworld) — skipped automatically when neutral
+    emit("formant", "Stage 5: Shaping formants")
+    import gen_formant
+    gen_formant.main()
+
     # Combine them all into the choir
-    emit("combine", "Stage 5: Combining all voices into choir")
+    emit("combine", "Stage 6: Combining all voices into choir")
     import gen_combine
     gen_combine.main()
 
     # Add convolution reverb
-    emit("convolve", "Stage 6: Adding convolution reverb")
+    emit("convolve", "Stage 7: Adding convolution reverb")
     import gen_convolve
     gen_convolve.main()
 

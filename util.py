@@ -70,7 +70,6 @@ def check_config():
     required_fields = [
         "cleanup",
         "convolution_reverb_dry_wet",
-        "stereo_spread",
         "base_detune",
         "detune_drift",
         "detune_frequency",

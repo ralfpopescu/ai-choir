@@ -1,19 +1,16 @@
 from pydub import AudioSegment
 from pydub.effects import normalize, pan
 from util import get_models, get_config
-import time
-import random
-import os
 
 
-file_to_pan = {
-    "./output/female-1.wav": 0,
-    "./output/female-2.wav": 0.25,
-    "./output/female-3.wav": 0.2,
-    "./output/female-4.wav": -0.25,
-    "./output/male-1.wav": 0.15,
-    "./output/male-2.wav": -0.2,
-    "./output/male-3.wav": -0.15,
+file_to_pan_key = {
+    "./output/female-1.wav": "voice_pan_female_1",
+    "./output/female-2.wav": "voice_pan_female_2",
+    "./output/female-3.wav": "voice_pan_female_3",
+    "./output/female-4.wav": "voice_pan_female_4",
+    "./output/male-1.wav": "voice_pan_male_1",
+    "./output/male-2.wav": "voice_pan_male_2",
+    "./output/male-3.wav": "voice_pan_male_3",
 }
 
 file_to_gain_key = {
@@ -27,13 +24,8 @@ file_to_gain_key = {
 }
 
 
-def get_random_pan():
-    return random.randrange(0, 25) / 100
-
-
 def main():
     config = get_config()
-    pan_amount = config["stereo_spread"]
 
     models = get_models()
 
@@ -55,16 +47,13 @@ def main():
         normalized_audio = normalize(audio)
         normalized_audios.append(normalized_audio)
 
-    # Pan each normalized audio file slightly left or right, alternating
+    # Pan each voice to its own stereo position (-1 = hard left, +1 = hard right)
     panned_audios = []
     for i, audio in enumerate(normalized_audios):
-        # produce a random pan if we've added unaccounted models
-        file_pan = 0
-        if files[i] in file_to_pan:
-            file_pan = file_to_pan[files[i]]
-        else:
-            file_pan = get_random_pan()
-        panned_audio = pan(audio, pan_amount * file_pan)
+        pan_key = file_to_pan_key.get(files[i])
+        file_pan = config.get(pan_key, 0.0) if pan_key else 0.0
+        file_pan = max(-1.0, min(1.0, file_pan))
+        panned_audio = pan(audio, file_pan)
         panned_audios.append(panned_audio)
 
     # Overlay all the panned audio files

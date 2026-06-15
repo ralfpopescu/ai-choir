@@ -1,7 +1,8 @@
 {
     "impulse_file": "",
-    "convolution_reverb_dry_wet": 0.4,
-    "stereo_spread": 4.0,
+    "convolution_reverb_dry_wet": 0.08,
+    "formant_shift": 0.0,
+    "formant_drift": 0.0,
     "base_detune": 0.03,
     "detune_drift": 0.0075,
     "detune_frequency": 0.3,
@@ -13,5 +14,12 @@
     "voice_gain_male_1": 0.0,
     "voice_gain_male_2": 0.0,
     "voice_gain_male_3": 0.0,
+    "voice_pan_female_1": -1.0,
+    "voice_pan_female_2": 1.0,
+    "voice_pan_female_3": -0.4,
+    "voice_pan_female_4": 0.4,
+    "voice_pan_male_1": -0.2,
+    "voice_pan_male_2": 0.2,
+    "voice_pan_male_3": 0.0,
     "cleanup": true
 }

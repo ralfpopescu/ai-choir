@@ -41,6 +41,7 @@ a = Analysis(
         'soundfile',
         'scipy.signal',
         'scipy.io.wavfile',
+        'scipy.ndimage',
         # ML / AI (imported at runtime by the so-vits-svc data files)
         'torch',
         'torchaudio',
@@ -68,6 +69,7 @@ a = Analysis(
         'gen_process',
         'gen_curve',
         'gen_combine',
+        'gen_formant',
         'gen_convolve',
         'cleanup',
         'util',
