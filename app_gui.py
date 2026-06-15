@@ -171,13 +171,13 @@ class AIChoirApp(QMainWindow):
     # Configuration descriptions and ranges
     config_info = {
         "impulse_file": ("Select an impulse response file for convolution reverb", ""),
-        "convolution_reverb_dry_wet": ("Adds convolution reverb to the output. Switch out the impulse.wav file for whatever impulse response you want!", "0 - 1.0"),
-        "formant_shift": ("Shifts the formants (perceived vocal size) without changing pitch. Negative = larger/darker, positive = smaller/brighter", "-1.0 to 1.0"),
-        "formant_drift": ("How much each voice's formants randomly waver over time, for a more natural ensemble", "0 to 1.0"),
-        "base_detune": ("How detuned the voices should be", "0 to 0.05"),
-        "detune_drift": ("How much the voices should fluctuate around the base detuning", "0 to 25% of base_detune"),
-        "detune_frequency": ("How long voices will linger on a detuned note", "0 to 5.0"),
-        "output_gain": ("Apply gain to the output", "-inf to inf"),
+        "convolution_reverb_dry_wet": ("How wet the convolution reverb is (0 = dry, 100% = fully wet). Swap impulse.wav for a different space.", "0 - 1.0"),
+        "formant_shift": ("Shifts vocal timbre/size without changing pitch. Below 0 = darker/larger, above 0 = brighter/smaller, 0 = unchanged.", "-1.0 to 1.0"),
+        "formant_drift": ("How much each voice's formants waver over time (0 = static). Randomized per voice; speed set by Variation Frequency.", "0 to 1.0"),
+        "base_detune": ("How far the voices drift out of tune from each other (0 = unison).", "0 to 0.05"),
+        "detune_drift": ("How much the detune wavers over time, as a share of the musical maximum (0 = steady, 100% = most). Randomized per voice.", "0 - 1.0"),
+        "detune_frequency": ("Speed of the pitch and formant variation, shared by both (higher = faster waver).", "1.0 to 0.1"),
+        "output_gain": ("Overall output level.", "-inf to inf"),
         "voice_gain_female_1": ("Gain for female voice 1", "-inf to inf"),
         "voice_gain_female_2": ("Gain for female voice 2", "-inf to inf"),
         "voice_gain_female_3": ("Gain for female voice 3", "-inf to inf"),
@@ -204,7 +204,7 @@ class AIChoirApp(QMainWindow):
         "formant_shift": 0.0,
         "formant_drift": 0.0,
         "base_detune": 0.03,
-        "detune_drift": 0.0075,
+        "detune_drift": 0.6,
         "detune_frequency": 0.3,
         "output_gain": -10,
         "voice_gain_female_1": 0.0,
@@ -261,12 +261,14 @@ class AIChoirApp(QMainWindow):
                     "male_1", "male_2", "male_3")}
 
     # Each preset is a full set of the sound + voice params (not impulse/output).
-    # Reverb is dry by default; only Wide & Lush and Cathedral are roomy.
+    # detune_drift / formant_drift are 0..1 variation amounts; detune_frequency
+    # is the shared variation speed (lower value = faster). Reverb is dry by
+    # default; only Wide & Lush and Cathedral are roomy.
     PRESETS = {
         "Balanced": {
             **_PANS_WIDE, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.0,
-            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.6, "detune_frequency": 0.3,
             "convolution_reverb_dry_wet": 0.08,
         },
         "Female Dominated": {
@@ -275,7 +277,7 @@ class AIChoirApp(QMainWindow):
             "voice_gain_female_3": 2.0, "voice_gain_female_4": 2.0,
             "voice_gain_male_1": -6.0, "voice_gain_male_2": -6.0, "voice_gain_male_3": -6.0,
             "formant_shift": 0.12, "formant_drift": 0.3,
-            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.6, "detune_frequency": 0.3,
             "convolution_reverb_dry_wet": 0.08,
         },
         "Male Dominated": {
@@ -284,55 +286,55 @@ class AIChoirApp(QMainWindow):
             "voice_gain_female_3": -6.0, "voice_gain_female_4": -6.0,
             "voice_gain_male_1": 2.0, "voice_gain_male_2": 2.0, "voice_gain_male_3": 2.0,
             "formant_shift": -0.12, "formant_drift": 0.3,
-            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.6, "detune_frequency": 0.3,
             "convolution_reverb_dry_wet": 0.08,
         },
         "Female Spread": {
             **_PANS_FEMALE_SPREAD, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.2,
-            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.7, "detune_frequency": 0.3,
             "convolution_reverb_dry_wet": 0.08,
         },
         "Male Spread": {
             **_PANS_MALE_SPREAD, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.2,
-            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.3,
+            "base_detune": 0.03, "detune_drift": 0.7, "detune_frequency": 0.3,
             "convolution_reverb_dry_wet": 0.08,
         },
         "Centered Leads": {
             **_PANS_CENTERED_LEADS, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.0,
-            "base_detune": 0.025, "detune_drift": 0.006, "detune_frequency": 0.3,
+            "base_detune": 0.025, "detune_drift": 0.5, "detune_frequency": 0.3,
             "convolution_reverb_dry_wet": 0.08,
         },
         "Light Chorus": {
             **_PANS_WIDE, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.15,
-            "base_detune": 0.01, "detune_drift": 0.0025, "detune_frequency": 0.5,
+            "base_detune": 0.01, "detune_drift": 0.8, "detune_frequency": 0.15,
             "convolution_reverb_dry_wet": 0.06,
         },
         "Deep & Low": {
             **_PANS_WIDE, **_GAINS_FLAT,
             "formant_shift": -0.3, "formant_drift": 0.2,
-            "base_detune": 0.035, "detune_drift": 0.008, "detune_frequency": 0.25,
+            "base_detune": 0.035, "detune_drift": 0.7, "detune_frequency": 0.4,
             "convolution_reverb_dry_wet": 0.12,
         },
         "Tight & Dry": {
             **_PANS_TIGHT, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.0,
-            "base_detune": 0.012, "detune_drift": 0.002, "detune_frequency": 0.25,
+            "base_detune": 0.012, "detune_drift": 0.3, "detune_frequency": 0.3,
             "convolution_reverb_dry_wet": 0.04,
         },
         "Wide & Lush": {
             **_PANS_WIDER, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.5,
-            "base_detune": 0.04, "detune_drift": 0.01, "detune_frequency": 0.4,
+            "base_detune": 0.04, "detune_drift": 1.0, "detune_frequency": 0.4,
             "convolution_reverb_dry_wet": 0.5,
         },
         "Cathedral": {
             **_PANS_WIDER, **_GAINS_FLAT,
             "formant_shift": 0.0, "formant_drift": 0.3,
-            "base_detune": 0.03, "detune_drift": 0.0075, "detune_frequency": 0.35,
+            "base_detune": 0.03, "detune_drift": 0.8, "detune_frequency": 0.35,
             "convolution_reverb_dry_wet": 0.7,
         },
     }
@@ -481,12 +483,12 @@ class AIChoirApp(QMainWindow):
 
         display_names = {
             "impulse_file": "Impulse File",
-            "convolution_reverb_dry_wet": "Reverb Dry/Wet",
+            "convolution_reverb_dry_wet": "Reverb",
             "formant_shift": "Formant",
-            "formant_drift": "Formant Drift",
-            "base_detune": "Base Detune",
-            "detune_drift": "Detune Drift",
-            "detune_frequency": "Detune Frequency",
+            "formant_drift": "Formant Variation",
+            "base_detune": "Detune Amount",
+            "detune_drift": "Detune Variation",
+            "detune_frequency": "Variation Frequency",
             "output_gain": "Output Gain",
         }
 
@@ -557,7 +559,9 @@ class AIChoirApp(QMainWindow):
                 left_column.addRow(display_key, impulse_widget)
                 self.config_widgets[key] = impulse_edit
             else:
-                slider_widget = self.create_slider_widget(key, value)
+                fmt = {"formant_shift": self._fmt_formant,
+                       "output_gain": self._fmt_gain}.get(key)
+                slider_widget = self.create_slider_widget(key, value, fmt=fmt)
                 self.config_widgets[key] = slider_widget
                 left_column.addRow(display_key, slider_widget["widget"])
 
@@ -573,7 +577,7 @@ class AIChoirApp(QMainWindow):
         ]
         voices_grid = QGridLayout()
         voices_grid.setHorizontalSpacing(10)
-        voices_grid.setVerticalSpacing(13)
+        voices_grid.setVerticalSpacing(22)
         voices_grid.setContentsMargins(0, 0, 0, 0)
         gain_hdr = QLabel("GAIN")
         gain_hdr.setObjectName("subHeader")
@@ -586,8 +590,8 @@ class AIChoirApp(QMainWindow):
             p = self._make_slider(pkey, self.config[pkey], fmt=self._fmt_pan)
             self.config_widgets[gkey] = g
             self.config_widgets[pkey] = p
-            g["slider"].setMinimumHeight(ROW_CONTROL_H)
-            p["slider"].setMinimumHeight(ROW_CONTROL_H)
+            g["slider"].setMinimumHeight(ROW_CONTROL_H + 4)
+            p["slider"].setMinimumHeight(ROW_CONTROL_H + 4)
             voices_grid.addWidget(QLabel(name), r, 0)
             voices_grid.addWidget(g["slider"], r, 1)
             voices_grid.addWidget(g["label"], r, 2)
@@ -810,17 +814,24 @@ class AIChoirApp(QMainWindow):
         QApplication.instance().setStyleSheet("QToolTip { show-delay: 0ms; }")
         
     def connect_config_signals(self):
-        """Connect signals for all config widgets to save on change"""
+        """Save (and mark the preset Custom) whenever a control is changed."""
         for key, widget in self.config_widgets.items():
+            handler = (lambda *_, k=key: self._on_control_changed(k))
             if isinstance(widget, dict) and "slider" in widget:
-                # For slider widgets
-                widget["slider"].valueChanged.connect(self.save_config)
+                widget["slider"].valueChanged.connect(handler)
             elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
-                widget.valueChanged.connect(self.save_config)
+                widget.valueChanged.connect(handler)
             elif isinstance(widget, QLineEdit):
-                widget.textChanged.connect(self.save_config)
+                widget.textChanged.connect(handler)
             elif isinstance(widget, QCheckBox):
-                widget.stateChanged.connect(self.save_config)
+                widget.stateChanged.connect(handler)
+
+    def _on_control_changed(self, key):
+        """A control moved: persist, and drop to 'Custom' only when the change
+        is to a preset-controlled parameter and we're not mid-apply."""
+        self.save_config()
+        if not self._applying_preset and key in self.preset_keys:
+            self._set_preset_combo("Custom")
 
     def get_config(self):
         saved = None
@@ -899,12 +910,7 @@ class AIChoirApp(QMainWindow):
                 json.dump(self.config, file, indent=4)
         except Exception as e:
             QMessageBox.warning(self, "Warning", f"Could not save configuration: {str(e)}")
-            return
 
-        # A manual edit means we're no longer on a named preset.
-        if not self._applying_preset:
-            self._set_preset_combo("Custom")
-    
     def browse_input_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select WAV File", "", "WAV Files (*.wav)"
@@ -1136,6 +1142,12 @@ class AIChoirApp(QMainWindow):
             return "C"
         return f"{round(abs(v) * 50)}{'L' if v < 0 else 'R'}"
 
+    @staticmethod
+    def _fmt_formant(v):
+        """Format formant (-1..1) signed and centered: -40 / 0 / +45."""
+        n = round(v * 100)
+        return "0" if n == 0 else f"{n:+d}"
+
     def _make_slider(self, key, value, fmt=None):
         """Build a 0-100 slider plus its readout, wired to update + save.
 
@@ -1169,16 +1181,14 @@ class AIChoirApp(QMainWindow):
 
         render()
 
-        def on_slider_changed():
-            render()
-            self.save_config()
-
-        slider.valueChanged.connect(on_slider_changed)
+        # Keep the readout live; saving + preset tracking is wired centrally in
+        # connect_config_signals so it isn't double-handled.
+        slider.valueChanged.connect(render)
         return {"slider": slider, "label": label}
 
-    def create_slider_widget(self, key, value):
-        """Slider + % readout + help button as one row widget (SOUND form)."""
-        parts = self._make_slider(key, value)
+    def create_slider_widget(self, key, value, fmt=None):
+        """Slider + readout + help button as one row widget (SOUND form)."""
+        parts = self._make_slider(key, value, fmt=fmt)
         widget = QWidget()
         widget.setFixedHeight(ROW_CONTROL_H)
         layout = QHBoxLayout()
