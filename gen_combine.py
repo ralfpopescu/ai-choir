@@ -33,18 +33,21 @@ def main():
     for folder, spk in models:
         files.append(f"./output/{spk}.wav")
 
-    # Load and normalize each file
+    # Load each file, normalize to a common reference, then apply per-voice gain.
+    # Order matters: normalize() rescales the peak back to ~0 dBFS, so it must run
+    # BEFORE the gain is applied — otherwise it would undo the user's gain setting.
     normalized_audios = []
     for file in files:
         audio = AudioSegment.from_file(file, format="wav")
 
-        # Apply gain
+        normalized_audio = normalize(audio)
+
+        # Apply per-voice gain (dB) on top of the normalized level
         gain_key = file_to_gain_key.get(file, None)
         if gain_key and gain_key in config:
             gain_value = config[gain_key]
-            audio = audio + gain_value
+            normalized_audio = normalized_audio + gain_value
 
-        normalized_audio = normalize(audio)
         normalized_audios.append(normalized_audio)
 
     # Pan each voice to its own stereo position (-1 = hard left, +1 = hard right)

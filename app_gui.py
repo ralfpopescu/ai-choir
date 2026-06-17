@@ -337,6 +337,39 @@ class AIChoirApp(QMainWindow):
             "base_detune": 0.03, "detune_drift": 0.8, "detune_frequency": 0.35,
             "convolution_reverb_dry_wet": 0.7,
         },
+        # Character / effect presets. formant_shift is signed -1..1 (shown x100);
+        # base_detune 0..0.05; the *_drift values are 0..1; detune_frequency runs
+        # 1.0 (0% = slowest waver) to 0.1 (100% = fastest), so 0.55 reads as 50%.
+        "Formant Wobble": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": 0.05, "formant_drift": 1.0,
+            "base_detune": 0.015, "detune_drift": 0.5, "detune_frequency": 0.55,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Max Detuned": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": 0.0, "formant_drift": 0.0,
+            "base_detune": 0.05, "detune_drift": 1.0, "detune_frequency": 0.55,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Demons": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": -1.0, "formant_drift": 0.2,
+            "base_detune": 0.05, "detune_drift": 1.0, "detune_frequency": 0.55,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Chipmunks": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": 1.0, "formant_drift": 0.0,
+            "base_detune": 0.005, "detune_drift": 0.3, "detune_frequency": 0.55,
+            "convolution_reverb_dry_wet": 0.08,
+        },
+        "Drawling": {
+            **_PANS_WIDE, **_GAINS_FLAT,
+            "formant_shift": -0.05, "formant_drift": 1.0,
+            "base_detune": 0.015, "detune_drift": 1.0, "detune_frequency": 1.0,
+            "convolution_reverb_dry_wet": 0.08,
+        },
     }
 
     def __init__(self):
@@ -913,7 +946,8 @@ class AIChoirApp(QMainWindow):
 
     def browse_input_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select WAV File", "", "WAV Files (*.wav)"
+            self, "Select Audio File", "",
+            "Audio Files (*.wav *.mp3 *.flac *.ogg *.aiff *.aif);;All Files (*)"
         )
         if file_path:
             self.input_path.setText(file_path)
@@ -1162,7 +1196,9 @@ class AIChoirApp(QMainWindow):
         slider = QSlider(Qt.Horizontal)
         slider.setRange(0, 100)  # always 0-100; mapped to real value on save
         if max_val != min_val:
-            percentage = int(((value - min_val) / (max_val - min_val)) * 100)
+            # round (not truncate) so a stored value lands on the nearest slider
+            # tick -- truncation biases every readout low (e.g. 0.55 -> 49%).
+            percentage = round(((value - min_val) / (max_val - min_val)) * 100)
             percentage = max(0, min(100, percentage))
         else:
             percentage = 50
@@ -1248,8 +1284,9 @@ class AIChoirApp(QMainWindow):
         
         min_val, max_val = self.slider_ranges[key]
         if max_val != min_val:
+            # round, not truncate: keeps presets/readouts on the nearest tick.
             percentage = ((value - min_val) / (max_val - min_val)) * 100
-            return max(0, min(100, int(percentage)))
+            return max(0, min(100, round(percentage)))
         return 50
 
 

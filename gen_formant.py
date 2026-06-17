@@ -31,6 +31,11 @@ MAX_DRIFT = 0.15
 # waver. WORLD's default hop is 5 ms, so 45 frames is ~225 ms.
 SMOOTH_PER_FREQ = 150
 MIN_SMOOTH_FRAMES = 8
+# Each voice wavers at its OWN rate, not just its own shape: per-voice smoothing
+# windows are spread evenly in log-space so the slowest voice wobbles this many
+# times slower than the fastest. This is what makes it sound like several
+# independent singers rather than one warble applied in unison.
+DRIFT_RATE_SPREAD = 4.0
 
 
 def _warp_envelope(sp, warp_curve):
@@ -81,9 +86,21 @@ def main():
 
     # Variation frequency is shared with the detune stage (lower = faster).
     freq = float(config.get("detune_frequency", 0.3))
-    smooth_frames = max(MIN_SMOOTH_FRAMES, freq * SMOOTH_PER_FREQ)
+    base_smooth = max(MIN_SMOOTH_FRAMES, freq * SMOOTH_PER_FREQ)
 
-    for speaker in get_speakers():
+    speakers = get_speakers()
+    nvoices = len(speakers)
+    for i, speaker in enumerate(speakers):
+        # Give each voice its own waver rate by spreading the smoothing window
+        # evenly in log-space across DRIFT_RATE_SPREAD (slowest .. fastest).
+        # factor < 1 -> less smoothing -> quicker waver; > 1 -> slower.
+        if drift > 0 and nvoices > 1:
+            frac = i / (nvoices - 1)  # 0..1
+            factor = DRIFT_RATE_SPREAD ** (frac - 0.5)  # 1/sqrt .. sqrt
+        else:
+            factor = 1.0
+        smooth_frames = max(MIN_SMOOTH_FRAMES, base_smooth * factor)
+
         path = f"./output/{speaker}.wav"
         y, sr = sf.read(path)
         if y.ndim > 1:

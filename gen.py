@@ -19,12 +19,27 @@ def build_inference_args(speaker, folder):
 
 
 def move_and_rename_file(file_path, destination_dir):
+    """Stage the user's input as a real WAV at destination_dir/input.wav.
+
+    The input may be any format libsndfile can decode (wav, mp3, flac, ogg,
+    aiff, ...). Downstream stages (so-vits inference, librosa) all expect a
+    genuine WAV, so non-wav inputs are decoded and re-encoded as PCM WAV rather
+    than byte-copied under a .wav name (which would hand mp3 bytes to a WAV
+    loader).
+    """
     if not os.path.exists(destination_dir):
         os.makedirs(destination_dir)
 
     destination_path = os.path.join(destination_dir, 'input.wav')
-    shutil.copy(file_path, destination_path)
-    print(f"File copied and renamed to: {destination_path}")
+
+    if file_path.lower().endswith('.wav'):
+        shutil.copy(file_path, destination_path)
+        print(f"File copied and renamed to: {destination_path}")
+    else:
+        import soundfile as sf
+        data, samplerate = sf.read(file_path)
+        sf.write(destination_path, data, samplerate, subtype='PCM_16')
+        print(f"File decoded to WAV: {destination_path}")
 
 
 def is_wav_file(file_path):
